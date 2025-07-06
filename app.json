@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "delilog",
+    "slug": "delilog",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "delilog",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFCF2"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "jp.delilog.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFCF2"
+      },
+      "package": "jp.delilog.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
