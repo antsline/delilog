@@ -52,18 +52,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="tenko-before"
-        options={{
-          href: null, // タブバーから除外
-        }}
-      />
-      <Tabs.Screen
-        name="tenko-after"
-        options={{
-          href: null, // タブバーから除外
-        }}
-      />
-      <Tabs.Screen
         name="records"
         options={{
           title: '記録一覧',

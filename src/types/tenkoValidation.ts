@@ -27,6 +27,9 @@ export const tenkoAfterSchema = z.object({
       const num = parseFloat(val);
       return num >= 0 && num <= 10;
     }, 'アルコール数値は0.00〜10.00の範囲で入力してください'),
+  healthStatus: z.enum(['good', 'caution', 'poor'], {
+    errorMap: () => ({ message: '健康状態を選択してください' })
+  }),
   operationStatus: z.enum(['ok', 'ng'], {
     errorMap: () => ({ message: '運行状況を選択してください' })
   }),

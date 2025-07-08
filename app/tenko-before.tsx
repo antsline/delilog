@@ -17,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Feather } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
@@ -28,6 +29,7 @@ export default function TenkoBeforeScreen() {
   const { user, profile } = useAuth();
   const { vehicles, todayStatus } = useTenko();
   const [submitting, setSubmitting] = React.useState(false);
+  const [vehicleDropdownOpen, setVehicleDropdownOpen] = React.useState(false);
 
   // React Hook Form設定
   const {
@@ -47,18 +49,35 @@ export default function TenkoBeforeScreen() {
       dailyCheckCompleted: true,
       notes: '',
     },
-    mode: 'onChange',
+    mode: 'all',
   });
 
   const watchedValues = watch();
-
-
-  // デフォルト車両の自動選択
+  
+  // デバッグ用: フォームの状態をログ出力
   React.useEffect(() => {
+    console.log('*** tenko-before form state:', {
+      isValid,
+      errors,
+      values: watchedValues
+    });
+  }, [isValid, errors, watchedValues]);
+
+  // 初期化処理（車両選択 + その他のフィールド）
+  React.useEffect(() => {
+    // デフォルト車両の自動選択
     const defaultVehicle = vehicles.find(v => v.is_default && v.is_active);
     if (defaultVehicle && !watchedValues.vehicleId) {
-      setValue('vehicleId', defaultVehicle.id);
+      setValue('vehicleId', defaultVehicle.id, { shouldValidate: true });
     }
+    
+    // その他のフィールドの初期値設定
+    setValue('healthStatus', 'good', { shouldValidate: true });
+    setValue('dailyCheckCompleted', true, { shouldValidate: true });
+    setValue('checkMethod', '対面', { shouldValidate: true });
+    setValue('executor', '本人', { shouldValidate: true });
+    setValue('alcoholLevel', '0.00', { shouldValidate: true });
+    setValue('notes', '', { shouldValidate: true });
   }, [vehicles, setValue, watchedValues.vehicleId]);
 
   // フォーム送信処理
@@ -82,7 +101,7 @@ export default function TenkoBeforeScreen() {
         alcohol_level: parseFloat(data.alcoholLevel),
         health_status: data.healthStatus,
         daily_check_completed: data.dailyCheckCompleted,
-        notes: data.notes || null,
+        notes: data.notes || undefined,
         platform: 'mobile' as const,
       };
 
@@ -169,7 +188,7 @@ export default function TenkoBeforeScreen() {
             style={styles.backIcon}
             onPress={() => {
               console.log('*** 戻るボタン押下');
-              router.replace('/(auth)/register');
+              router.back();
             }}
           >
             <Text style={styles.backIconText}>←</Text>
@@ -193,38 +212,78 @@ export default function TenkoBeforeScreen() {
           <Controller
             control={control}
             name="vehicleId"
-            render={({ field: { value, onChange } }) => (
-              <View style={styles.vehicleSelection}>
-                {vehicles.length > 0 ? (
-                  vehicles.map((vehicle) => (
-                    <TouchableOpacity
-                      key={vehicle.id}
-                      style={[
-                        styles.vehicleOption,
-                        value === vehicle.id && styles.vehicleOptionSelected
-                      ]}
-                      onPress={() => onChange(vehicle.id)}
-                    >
-                      <Text style={[
-                        styles.vehicleOptionText,
-                        value === vehicle.id && styles.vehicleOptionTextSelected
-                      ]}>
-                        {vehicle.plate_number}
-                      </Text>
-                      {vehicle.is_default && (
-                        <Text style={styles.defaultBadge}>デフォルト</Text>
+            render={({ field: { value, onChange } }) => {
+              const selectedVehicle = vehicles.find(v => v.id === value);
+              
+              return (
+                <View style={styles.vehicleDropdownContainer}>
+                  {vehicles.length > 0 ? (
+                    <>
+                      {/* ドロップダウンボタン */}
+                      <TouchableOpacity
+                        style={[
+                          styles.vehicleDropdownButton,
+                          value && styles.vehicleDropdownButtonSelected
+                        ]}
+                        onPress={() => setVehicleDropdownOpen(!vehicleDropdownOpen)}
+                      >
+                        <View style={styles.vehicleDropdownButtonContent}>
+                          <Text style={[
+                            styles.vehicleDropdownButtonText,
+                            value && styles.vehicleDropdownButtonTextSelected
+                          ]}>
+                            {selectedVehicle ? selectedVehicle.plate_number : '車両を選択してください'}
+                          </Text>
+                          {selectedVehicle?.is_default && (
+                            <Text style={styles.defaultBadgeDropdown}>デフォルト</Text>
+                          )}
+                        </View>
+                        <Feather 
+                          name={vehicleDropdownOpen ? "chevron-up" : "chevron-down"} 
+                          size={20} 
+                          color={colors.charcoal} 
+                        />
+                      </TouchableOpacity>
+                      
+                      {/* ドロップダウンメニュー */}
+                      {vehicleDropdownOpen && (
+                        <View style={styles.vehicleDropdownMenu}>
+                          {vehicles.map((vehicle) => (
+                            <TouchableOpacity
+                              key={vehicle.id}
+                              style={[
+                                styles.vehicleDropdownOption,
+                                value === vehicle.id && styles.vehicleDropdownOptionSelected
+                              ]}
+                              onPress={() => {
+                                onChange(vehicle.id);
+                                setVehicleDropdownOpen(false);
+                              }}
+                            >
+                              <Text style={[
+                                styles.vehicleDropdownOptionText,
+                                value === vehicle.id && styles.vehicleDropdownOptionTextSelected
+                              ]}>
+                                {vehicle.plate_number}
+                              </Text>
+                              {vehicle.is_default && (
+                                <Text style={styles.defaultBadgeDropdown}>デフォルト</Text>
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                        </View>
                       )}
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <View style={styles.noVehicleContainer}>
-                    <Text style={styles.noVehicleText}>
-                      車両が登録されていません。設定画面から車両を追加してください。
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
+                    </>
+                  ) : (
+                    <View style={styles.noVehicleContainer}>
+                      <Text style={styles.noVehicleText}>
+                        車両が登録されていません。設定画面から車両を追加してください。
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            }}
           />
           {errors.vehicleId && (
             <Text style={styles.errorText}>{errors.vehicleId.message}</Text>
@@ -509,39 +568,85 @@ const styles = StyleSheet.create({
     color: colors.charcoal,
     marginBottom: 4,
   },
-  vehicleSelection: {
-    gap: 12,
+  vehicleDropdownContainer: {
+    position: 'relative',
+    zIndex: 1000,
   },
-  vehicleOption: {
+  vehicleDropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.cream,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: colors.beige,
     borderRadius: 12,
     padding: 16,
   },
-  vehicleOptionSelected: {
-    borderColor: colors.orange,
-    backgroundColor: colors.orange + '10',
+  vehicleDropdownButtonSelected: {
+    borderColor: colors.beige,
   },
-  vehicleOptionText: {
+  vehicleDropdownButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  vehicleDropdownButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.beige,
+    flex: 1,
+  },
+  vehicleDropdownButtonTextSelected: {
+    color: colors.charcoal,
+  },
+  vehicleDropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: colors.beige,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    maxHeight: 200,
+    zIndex: 1001,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  vehicleDropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.beige,
+  },
+  vehicleDropdownOptionSelected: {
+    backgroundColor: colors.charcoal,
+  },
+  vehicleDropdownOptionText: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.charcoal,
+    flex: 1,
   },
-  vehicleOptionTextSelected: {
-    color: colors.orange,
+  vehicleDropdownOptionTextSelected: {
+    color: '#FFFFFF',
   },
-  defaultBadge: {
-    backgroundColor: colors.charcoal,
-    color: colors.cream,
+  defaultBadgeDropdown: {
+    backgroundColor: colors.orange,
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    marginLeft: 8,
   },
   row: {
     flexDirection: 'row',
@@ -581,7 +686,7 @@ const styles = StyleSheet.create({
     color: colors.charcoal,
   },
   textInput: {
-    backgroundColor: colors.cream,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: colors.beige,
     borderRadius: 8,
@@ -625,7 +730,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   alcoholInput: {
-    backgroundColor: colors.cream,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: colors.beige,
     borderRadius: 8,
@@ -645,7 +750,7 @@ const styles = StyleSheet.create({
   },
   healthOption: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: colors.beige,
     borderRadius: 12,
@@ -697,7 +802,7 @@ const styles = StyleSheet.create({
     color: colors.charcoal,
   },
   notesInput: {
-    backgroundColor: colors.cream,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: colors.beige,
     borderRadius: 12,
@@ -792,7 +897,7 @@ const styles = StyleSheet.create({
   },
   dailyCheckOption: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: colors.beige,
     borderRadius: 12,

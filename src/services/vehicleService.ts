@@ -4,6 +4,8 @@ import { Vehicle, VehicleInsert } from '@/types/database';
 export class VehicleService {
   // ユーザーの車両一覧を取得
   static async getUserVehicles(userId: string): Promise<Vehicle[]> {
+    console.log('VehicleService.getUserVehicles called with userId:', userId);
+    
     const { data, error } = await supabase
       .from('vehicles')
       .select('*')
@@ -12,7 +14,26 @@ export class VehicleService {
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Database error in getUserVehicles:', error);
+      throw error;
+    }
+    
+    console.log('Raw data from database:', data);
+    if (data) {
+      data.forEach((vehicle, index) => {
+        console.log(`DB車両[${index}]:`, {
+          id: vehicle.id,
+          plate_number: vehicle.plate_number,
+          plate_number_json: JSON.stringify(vehicle.plate_number),
+          vehicle_name: vehicle.vehicle_name,
+          is_default: vehicle.is_default,
+          user_id: vehicle.user_id,
+          created_at: vehicle.created_at
+        });
+      });
+    }
+    
     return data || [];
   }
 
@@ -32,18 +53,32 @@ export class VehicleService {
 
   // 車両を作成
   static async createVehicle(vehicleData: VehicleInsert): Promise<Vehicle> {
+    console.log('VehicleService.createVehicle called with data:', vehicleData);
+    console.log('plate_number in createVehicle:', JSON.stringify(vehicleData.plate_number));
+    
     const { data, error } = await supabase
       .from('vehicles')
       .insert(vehicleData)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Database error in createVehicle:', error);
+      throw error;
+    }
+    
+    console.log('Created vehicle:', data);
+    console.log('Created vehicle plate_number:', JSON.stringify(data.plate_number));
     return data;
   }
 
   // 車両を更新
   static async updateVehicle(id: string, updates: Partial<VehicleInsert>): Promise<Vehicle> {
+    console.log('VehicleService.updateVehicle called with id:', id, 'updates:', updates);
+    if (updates.plate_number) {
+      console.log('plate_number in updateVehicle:', JSON.stringify(updates.plate_number));
+    }
+    
     const { data, error } = await supabase
       .from('vehicles')
       .update(updates)
@@ -51,7 +86,13 @@ export class VehicleService {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Database error in updateVehicle:', error);
+      throw error;
+    }
+    
+    console.log('Updated vehicle:', data);
+    console.log('Updated vehicle plate_number:', JSON.stringify(data.plate_number));
     return data;
   }
 

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
 import { VehicleService } from '@/services/vehicleService';
@@ -54,6 +55,16 @@ export default function VehiclesScreen() {
       console.log('Loading vehicles for user:', user.id);
       const vehicleList = await VehicleService.getUserVehicles(user.id);
       console.log('Loaded vehicles:', vehicleList);
+      
+      // 各車両のplate_numberの詳細を確認
+      vehicleList.forEach((vehicle, index) => {
+        console.log(`車両[${index}] - ID: ${vehicle.id}`);
+        console.log(`  plate_number: "${vehicle.plate_number}"`);
+        console.log(`  plate_number (JSON): ${JSON.stringify(vehicle.plate_number)}`);
+        console.log(`  vehicle_name: "${vehicle.vehicle_name}"`);
+        console.log(`  is_default: ${vehicle.is_default}`);
+      });
+      
       setVehicles(vehicleList);
     } catch (error) {
       console.error('車両一覧の取得エラー:', error);
@@ -78,19 +89,81 @@ export default function VehiclesScreen() {
   const openEditModal = (vehicle: Vehicle) => {
     setEditingVehicle(vehicle);
     // plate_numberを分割して表示用に変換
-    const plateparts = vehicle.plate_number.split(' ');
-    setFormData({
-      license_plate_region: plateparts[0] || '',
-      license_plate_classification: plateparts[1] || '',
-      license_plate_kana: plateparts[2] || '',
-      license_plate_number: plateparts[3] || '',
-      vehicle_name: vehicle.vehicle_name || '',
-    });
+    // 日本のナンバープレート形式: "品川 500 あ 1234"
+    console.log('=== 編集ボタンが押されました ===');
+    console.log('車両ID:', vehicle.id);
+    console.log('plate_number（生データ）:', vehicle.plate_number);
+    console.log('plate_number（文字列長）:', vehicle.plate_number?.length);
+    console.log('plate_number（JSON）:', JSON.stringify(vehicle.plate_number));
+    
+    // 日本のナンバープレート構成での分割処理
+    // 構成: 地域名 + 分類番号(2-3桁) + ひらがな(1文字) + 一連指定番号(1-4桁)
+    // 例: "品川500あ1234" または "品川 500 あ 1234"
+    
+    const plateString = vehicle.plate_number.trim();
+    console.log('処理対象文字列:', JSON.stringify(plateString));
+    
+    // 正規表現でナンバープレートを分割
+    // 地域名（漢字・ひらがな・カタカナ） + 分類番号（2-3桁） + ひらがな（1文字） + 一連指定番号（1-4桁）
+    const plateRegex = /^([^\d\s]+)\s*(\d{2,3})\s*([あ-ん])\s*(\d{1,4})$/;
+    const match = plateString.match(plateRegex);
+    
+    let formData;
+    if (match) {
+      console.log('✅ 正規表現で正常に分割できました');
+      console.log('分割結果:', {
+        地域名: match[1],
+        分類番号: match[2], 
+        ひらがな: match[3],
+        一連指定番号: match[4]
+      });
+      
+      formData = {
+        license_plate_region: match[1],
+        license_plate_classification: match[2],
+        license_plate_kana: match[3],
+        license_plate_number: match[4],
+        vehicle_name: vehicle.vehicle_name || '',
+      };
+    } else {
+      console.log('⚠️ 正規表現での分割に失敗しました。スペース区切りを試行します。');
+      
+      // フォールバック: スペース区切りでの分割
+      const plateparts = plateString.split(/\s+/);
+      console.log('スペース分割結果:', plateparts);
+      
+      if (plateparts.length === 4) {
+        formData = {
+          license_plate_region: plateparts[0],
+          license_plate_classification: plateparts[1],
+          license_plate_kana: plateparts[2],
+          license_plate_number: plateparts[3],
+          vehicle_name: vehicle.vehicle_name || '',
+        };
+      } else {
+        console.log('⚠️ スペース分割も失敗。手動分割が必要です。');
+        formData = {
+          license_plate_region: plateString,
+          license_plate_classification: '',
+          license_plate_kana: '',
+          license_plate_number: '',
+          vehicle_name: vehicle.vehicle_name || '',
+        };
+      }
+    }
+    
+    console.log('設定されるフォームデータ:', formData);
+    setFormData(formData);
+    console.log('=== 編集ボタン処理終了 ===');
+    
     setModalVisible(true);
   };
 
   const handleSave = async () => {
     if (!user) return;
+
+    console.log('=== 保存処理開始 ===');
+    console.log('現在のフォームデータ:', formData);
 
     // バリデーション
     if (!formData.license_plate_region.trim() || 
@@ -103,30 +176,39 @@ export default function VehiclesScreen() {
 
     // 分割されたフィールドを結合してplate_numberを作成
     const plate_number = `${formData.license_plate_region} ${formData.license_plate_classification} ${formData.license_plate_kana} ${formData.license_plate_number}`;
+    
+    console.log('結合されたplate_number:', plate_number);
+    console.log('結合されたplate_number (JSON):', JSON.stringify(plate_number));
 
     try {
       const vehicleData = {
         plate_number,
         vehicle_name: formData.vehicle_name || null,
       };
+      
+      console.log('保存するvehicleData:', vehicleData);
 
       if (editingVehicle) {
         // 編集
+        console.log('編集モード - 車両ID:', editingVehicle.id);
         await VehicleService.updateVehicle(editingVehicle.id, vehicleData);
       } else {
         // 新規追加
+        console.log('新規追加モード - ユーザーID:', user.id);
         await VehicleService.createVehicle({
           user_id: user.id,
           ...vehicleData,
         });
       }
       
+      console.log('保存処理が完了しました');
       setModalVisible(false);
       loadVehicles();
     } catch (error) {
       console.error('車両保存エラー:', error);
       Alert.alert('エラー', '車両の保存に失敗しました');
     }
+    console.log('=== 保存処理終了 ===');
   };
 
   const handleDelete = (vehicle: Vehicle) => {
@@ -218,7 +300,7 @@ export default function VehiclesScreen() {
                     <Text style={styles.defaultBadgeText}>デフォルト</Text>
                   </View>
                 )}
-                <View style={styles.vehicleInfo}>
+                <View style={[styles.vehicleInfo, vehicle.is_default && styles.vehicleInfoWithBadge]}>
                   <View style={styles.licensePlate}>
                     <Text style={styles.licensePlateText}>
                       {vehicle.plate_number}
@@ -230,31 +312,36 @@ export default function VehiclesScreen() {
                 </View>
                 
                 <View style={styles.vehicleActions}>
-                  {!vehicle.is_default && (
+                  <View style={styles.topActions}>
                     <TouchableOpacity 
-                      style={styles.defaultButton}
-                      onPress={() => handleSetDefault(vehicle)}
+                      style={styles.editButton}
+                      onPress={() => openEditModal(vehicle)}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.defaultButtonText}>デフォルトに設定</Text>
+                      <Text style={styles.editButtonText}>編集</Text>
                     </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      style={styles.deleteButton}
+                      onPress={() => handleDelete(vehicle)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.deleteButtonText}>削除</Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {!vehicle.is_default && (
+                    <View style={styles.bottomActions}>
+                      <TouchableOpacity 
+                        style={styles.setDefaultButton}
+                        onPress={() => handleSetDefault(vehicle)}
+                        activeOpacity={0.7}
+                      >
+                        <Feather name="star" size={14} color={colors.charcoal} />
+                        <Text style={styles.setDefaultButtonText}>デフォルトに設定</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
-                  
-                  <TouchableOpacity 
-                    style={styles.editButton}
-                    onPress={() => openEditModal(vehicle)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.editButtonText}>編集</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.deleteButton}
-                    onPress={() => handleDelete(vehicle)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.deleteButtonText}>削除</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
             ))
@@ -295,7 +382,7 @@ export default function VehiclesScreen() {
                   value={formData.license_plate_region}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, license_plate_region: text }))}
                   placeholder="品川"
-                  maxLength={4}
+                  maxLength={6}
                 />
                 <TextInput
                   style={[styles.input, styles.classificationInput]}
@@ -427,18 +514,23 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.beige,
     borderRadius: 16,
-    padding: 20,
     marginBottom: 16,
+    overflow: 'hidden',
     position: 'relative',
   },
   vehicleInfo: {
-    marginBottom: 16,
+    padding: 20,
+    paddingBottom: 12,
+    paddingTop: 20,
+  },
+  vehicleInfoWithBadge: {
+    paddingTop: 44,
   },
   licensePlate: {
     marginBottom: 8,
   },
   licensePlateText: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.charcoal,
     textAlign: 'center',
@@ -452,9 +544,9 @@ const styles = StyleSheet.create({
   defaultBadge: {
     position: 'absolute',
     top: 12,
-    right: 12,
+    left: 12,
     backgroundColor: colors.orange,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     zIndex: 1,
@@ -465,17 +557,30 @@ const styles = StyleSheet.create({
     color: colors.cream,
   },
   vehicleActions: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  topActions: {
     flexDirection: 'row',
     gap: 8,
+    marginBottom: 8,
   },
-  defaultButton: {
-    flex: 1,
-    backgroundColor: colors.beige,
-    padding: 10,
-    borderRadius: 8,
+  bottomActions: {
+    alignItems: 'flex-end',
+  },
+  setDefaultButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.beige,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 4,
   },
-  defaultButtonText: {
+  setDefaultButtonText: {
     fontSize: 12,
     fontWeight: '600',
     color: colors.charcoal,
@@ -494,7 +599,7 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: colors.beige,
     padding: 10,

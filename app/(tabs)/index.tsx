@@ -141,7 +141,7 @@ export default function HomeScreen() {
             style={[styles.taskCard, { backgroundColor: colors.orange }]}
             onPress={() => {
               console.log('*** 業務前点呼ボタン押下');
-              router.push('/(tabs)/tenko-before');
+              router.push('/tenko-before');
             }}
             hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             delayPressIn={0}
@@ -159,7 +159,7 @@ export default function HomeScreen() {
             style={[styles.taskCard, { backgroundColor: colors.charcoal }]}
             onPress={() => {
               console.log('*** 業務後点呼ボタン押下');
-              router.push('/(tabs)/tenko-after');
+              router.push('/tenko-after');
             }}
             hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             delayPressIn={0}

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { AuthService } from '@/services/authService';
 import { useAuth } from '@/hooks/useAuth';
@@ -91,30 +92,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSkipAuth = async () => {
-    try {
-      setLoading(true);
-      // 開発環境用: 認証をスキップして直接登録画面に遷移
-      Alert.alert(
-        '開発環境テスト',
-        '認証をスキップして登録画面に移動します。',
-        [
-          {
-            text: 'キャンセル',
-            style: 'cancel',
-          },
-          {
-            text: 'スキップ',
-            onPress: () => {
-              router.replace('/(auth)/register');
-            },
-          },
-        ]
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -138,9 +115,12 @@ export default function LoginScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color={colors.cream} size="small" />
+            <ActivityIndicator color={colors.charcoal} size="small" />
           ) : (
-            <Text style={styles.appleButtonText}>Apple IDでサインイン</Text>
+            <>
+              <FontAwesome5 name="apple" size={20} color={colors.charcoal} brand style={styles.buttonIcon} />
+              <Text style={styles.appleButtonText}>Apple IDでサインイン</Text>
+            </>
           )}
         </TouchableOpacity>
 
@@ -153,7 +133,10 @@ export default function LoginScreen() {
           {loading ? (
             <ActivityIndicator color={colors.charcoal} size="small" />
           ) : (
-            <Text style={styles.googleButtonText}>Googleでサインイン</Text>
+            <>
+              <FontAwesome5 name="google" size={20} color={colors.charcoal} brand style={styles.buttonIcon} />
+              <Text style={styles.googleButtonText}>Googleでサインイン</Text>
+            </>
           )}
         </TouchableOpacity>
 
@@ -164,9 +147,12 @@ export default function LoginScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color={colors.cream} size="small" />
+            <ActivityIndicator color={colors.charcoal} size="small" />
           ) : (
-            <Text style={styles.smsButtonText}>電話番号でサインイン</Text>
+            <>
+              <FontAwesome5 name="phone" size={20} color={colors.charcoal} solid style={styles.buttonIcon} />
+              <Text style={styles.smsButtonText}>電話番号でサインイン</Text>
+            </>
           )}
         </TouchableOpacity>
 
@@ -178,16 +164,10 @@ export default function LoginScreen() {
               activeOpacity={0.8}
               disabled={loading}
             >
-              <Text style={styles.testButtonText}>テスト用ログイン（開発環境）</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.authButton, styles.skipButton, loading && styles.disabledButton]}
-              onPress={handleSkipAuth}
-              activeOpacity={0.8}
-              disabled={loading}
-            >
-              <Text style={styles.skipButtonText}>認証をスキップ（テスト）</Text>
+              <>
+                <FontAwesome5 name="flask" size={18} color={colors.charcoal} solid style={styles.buttonIcon} />
+                <Text style={styles.testButtonText}>テスト用ログイン（開発環境）</Text>
+              </>
             </TouchableOpacity>
           </>
         )}
@@ -206,7 +186,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.cream,
-    paddingHorizontal: 24,
+    paddingHorizontal: 40,
   },
   header: {
     flex: 1,
@@ -251,22 +231,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 320,
   },
   appleButton: {
-    backgroundColor: colors.charcoal,
-    borderColor: colors.charcoal,
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.beige,
   },
   googleButton: {
-    backgroundColor: colors.cream,
-    borderColor: colors.darkGray,
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.beige,
   },
   smsButton: {
-    backgroundColor: colors.orange,
-    borderColor: colors.orange,
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.beige,
   },
   appleButtonText: {
-    color: colors.cream,
+    color: colors.charcoal,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -276,7 +259,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   smsButtonText: {
-    color: colors.cream,
+    color: colors.charcoal,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -284,19 +267,10 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   testButton: {
-    backgroundColor: colors.darkGray,
-    borderColor: colors.darkGray,
-  },
-  testButtonText: {
-    color: colors.cream,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  skipButton: {
-    backgroundColor: colors.beige,
+    backgroundColor: '#FFFFFF',
     borderColor: colors.beige,
   },
-  skipButtonText: {
+  testButtonText: {
     color: colors.charcoal,
     fontSize: 14,
     fontWeight: '600',
@@ -311,5 +285,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     opacity: 0.8,
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
 });
