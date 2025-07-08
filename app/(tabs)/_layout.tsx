@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { Feather } from '@expo/vector-icons';
+import { useNotificationNavigation } from '@/hooks/useNotificationNavigation';
 
 // アイコンコンポーネント
 const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
@@ -31,6 +32,9 @@ const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
 };
 
 export default function TabLayout() {
+  // 通知タップ時のナビゲーション処理
+  useNotificationNavigation();
+  
   return (
     <Tabs
       screenOptions={{

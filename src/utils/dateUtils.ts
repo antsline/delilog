@@ -138,3 +138,85 @@ export function generateDayList(year: number, month: number) {
 export function formatDateDisplay(year: number, month: number): string {
   return `${year}年${month + 1}月`;
 }
+
+/**
+ * 今日が週末かどうかを判定
+ */
+export function isWeekend(date: Date = new Date()): boolean {
+  const dayOfWeek = date.getDay(); // 0: Sunday, 6: Saturday
+  return dayOfWeek === 0 || dayOfWeek === 6;
+}
+
+/**
+ * 今日が平日かどうかを判定
+ */
+export function isWeekday(date: Date = new Date()): boolean {
+  return !isWeekend(date);
+}
+
+/**
+ * 時刻文字列（HH:MM）を今日の Date オブジェクトに変換
+ */
+export function timeStringToDate(timeString: string, date: Date = new Date()): Date {
+  const [hours, minutes] = timeString.split(':').map(Number);
+  const result = new Date(date);
+  result.setHours(hours, minutes, 0, 0);
+  return result;
+}
+
+/**
+ * 日本の祝日判定（簡易版）
+ */
+export function isJapaneseHoliday(date: Date): boolean {
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  
+  // 固定祝日の例
+  const fixedHolidays = [
+    '1-1',   // 元日
+    '2-11',  // 建国記念の日
+    '4-29',  // 昭和の日
+    '5-3',   // 憲法記念日
+    '5-4',   // みどりの日
+    '5-5',   // こどもの日
+    '8-11',  // 山の日
+    '11-3',  // 文化の日
+    '11-23', // 勤労感謝の日
+    '12-23', // 天皇誕生日（2019年以降）
+  ];
+  
+  const dateString = `${month}-${day}`;
+  return fixedHolidays.includes(dateString);
+}
+
+/**
+ * 営業日かどうかを判定（平日かつ非祝日）
+ */
+export function isBusinessDay(date: Date = new Date()): boolean {
+  return isWeekday(date) && !isJapaneseHoliday(date);
+}
+
+/**
+ * 時刻の形式化
+ */
+export function formatTime(date: Date): string {
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+/**
+ * 通知スケジュールが有効かチェック
+ */
+export function shouldScheduleNotification(
+  weekendEnabled: boolean,
+  date: Date = new Date()
+): boolean {
+  // 平日は常に有効
+  if (isWeekday(date)) {
+    return true;
+  }
+  
+  // 週末は設定に依存
+  return weekendEnabled;
+}

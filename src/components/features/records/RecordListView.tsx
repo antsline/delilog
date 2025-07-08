@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { Feather } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { router } from 'expo-router';
+import { withPerformanceMonitoring, usePerformanceMonitor } from '@/utils/performanceMonitor';
 
 interface RecordListViewProps {
   year: number;
@@ -41,6 +42,21 @@ export default function RecordListView({
   onDataChanged,
 }: RecordListViewProps) {
   const { user } = useAuthStore();
+  const { checkMemoryUsage, recordRenderTime } = usePerformanceMonitor();
+  
+  // レンダリング時間計測
+  const renderStartTime = React.useRef<number>();
+  React.useEffect(() => {
+    renderStartTime.current = Date.now();
+  }, []);
+  
+  React.useEffect(() => {
+    if (renderStartTime.current) {
+      const renderTime = Date.now() - renderStartTime.current;
+      recordRenderTime('RecordListView', renderTime);
+    }
+    checkMemoryUsage('RecordListView');
+  });
   // 月の日数リストを生成
   const dayList = generateDayList(year, month);
   

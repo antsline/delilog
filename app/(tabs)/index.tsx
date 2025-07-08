@@ -15,10 +15,20 @@ import { router, useFocusEffect } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
+import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
+import { withPerformanceMonitoring, usePerformanceMonitor } from '@/utils/performanceMonitor';
+import { 
+  AccessibilityLabels, 
+  AccessibilityHints, 
+  AccessibilityRoles,
+  createAccessibleProps,
+  accessibilityManager 
+} from '@/utils/accessibility';
 
-export default function HomeScreen() {
+function HomeScreen() {
   const { user, profile, loading: authLoading } = useAuth();
   const { todayStatus, loading: tenkoLoading, error, refreshData } = useTenko();
+  const { checkMemoryUsage, recordScreenTransition } = usePerformanceMonitor();
   
   console.log('*** (tabs)/index.tsx レンダリング - 状態:', { 
     user: !!user, 
@@ -33,11 +43,12 @@ export default function HomeScreen() {
       if (user) {
         refreshData();
       }
-    }, [user?.id]) // refreshData を依存配列から削除
+      checkMemoryUsage('HomeScreen');
+    }, [user?.id]) // checkMemoryUsageも依存配列から削除
   );
   
-  // 認証ローディング中は何も表示しない（一時的に無効化してテスト）
-  if (false && authLoading && !(user && profile)) {
+  // 認証ローディング中は何も表示しない
+  if (authLoading && !user) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -60,7 +71,10 @@ export default function HomeScreen() {
   });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView 
+      style={styles.container}
+      {...createAccessibleProps('ホーム画面', 'アプリのメイン画面です', AccessibilityRoles.FORM)}
+    >
       <StatusBar style="dark" backgroundColor={colors.cream} />
       
       <ScrollView 
@@ -70,15 +84,32 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContentContainer}
       >
         {/* ヘッダー部分 */}
-        <View style={styles.header}>
+        <View 
+          style={styles.header}
+          {...createAccessibleProps(
+            `おはようございます、${profile?.driver_name || 'ドライバー'}さん`,
+            '今日の挨拶です',
+            AccessibilityRoles.HEADER
+          )}
+        >
           <Text style={styles.greeting}>おはようございます</Text>
           <Text style={styles.userName}>{profile?.driver_name || 'ドライバー'}さん</Text>
         </View>
 
         {/* 日付カード */}
-        <View style={styles.dateCard}>
+        <View 
+          style={styles.dateCard}
+          {...createAccessibleProps(
+            `今日の日付、${todayString}`,
+            '今日の日付を表示しています',
+            AccessibilityRoles.TEXT
+          )}
+        >
           <Text style={styles.dateCardText}>{todayString}</Text>
         </View>
+
+        {/* 同期状態表示 */}
+        <SyncStatusIndicator showDetails={true} style={styles.syncIndicator} />
 
         {/* 今日のステータス */}
         <View style={styles.statusSection}>
@@ -141,11 +172,20 @@ export default function HomeScreen() {
             style={[styles.taskCard, { backgroundColor: colors.orange }]}
             onPress={() => {
               console.log('*** 業務前点呼ボタン押下');
+              const startTime = Date.now();
               router.push('/tenko-before');
+              setTimeout(() => {
+                recordScreenTransition('HomeScreen', 'TenkoBeforeScreen', Date.now() - startTime);
+              }, 100);
             }}
             hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             delayPressIn={0}
             delayPressOut={0}
+            {...createAccessibleProps(
+              AccessibilityLabels.BEFORE_TENKO_BUTTON,
+              AccessibilityHints.TENKO_BUTTON,
+              AccessibilityRoles.BUTTON
+            )}
           >
             <Text style={[styles.taskTitle, { color: colors.cream }]}>
               業務前点呼を記録
@@ -159,11 +199,20 @@ export default function HomeScreen() {
             style={[styles.taskCard, { backgroundColor: colors.charcoal }]}
             onPress={() => {
               console.log('*** 業務後点呼ボタン押下');
+              const startTime = Date.now();
               router.push('/tenko-after');
+              setTimeout(() => {
+                recordScreenTransition('HomeScreen', 'TenkoAfterScreen', Date.now() - startTime);
+              }, 100);
             }}
             hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             delayPressIn={0}
             delayPressOut={0}
+            {...createAccessibleProps(
+              AccessibilityLabels.AFTER_TENKO_BUTTON,
+              AccessibilityHints.TENKO_BUTTON,
+              AccessibilityRoles.BUTTON
+            )}
           >
             <Text style={[styles.taskTitle, { color: colors.cream }]}>
               業務後点呼を記録
@@ -404,4 +453,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  syncIndicator: {
+    marginBottom: 24,
+  },
 });
+
+// パフォーマンス監視付きでエクスポート
+export default React.memo(withPerformanceMonitoring(HomeScreen, 'HomeScreen'));

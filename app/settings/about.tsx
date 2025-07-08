@@ -101,6 +101,32 @@ export default function AboutScreen() {
             </View>
           </View>
 
+          {/* 法的情報セクション */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>法的情報</Text>
+            <View style={styles.card}>
+              <TouchableOpacity 
+                style={styles.legalLink}
+                onPress={() => router.push('/settings/privacy-policy')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.legalLinkText}>プライバシーポリシー</Text>
+                <Text style={styles.legalArrow}>›</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.legalDivider} />
+              
+              <TouchableOpacity 
+                style={styles.legalLink}
+                onPress={() => router.push('/settings/terms-of-service')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.legalLinkText}>利用規約</Text>
+                <Text style={styles.legalArrow}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* 免責事項セクション */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>免責事項</Text>
@@ -221,5 +247,25 @@ const styles = StyleSheet.create({
     color: colors.darkGray,
     lineHeight: 20,
     fontStyle: 'italic',
+  },
+  legalLink: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  legalLinkText: {
+    fontSize: 16,
+    color: colors.charcoal,
+    fontWeight: '500',
+  },
+  legalArrow: {
+    fontSize: 18,
+    color: colors.darkGray,
+  },
+  legalDivider: {
+    height: 1,
+    backgroundColor: colors.lightGray,
+    marginVertical: 4,
   },
 });

@@ -30,6 +30,21 @@ export default function SettingsScreen() {
     router.push('/settings/about');
   };
 
+  const handleNotifications = () => {
+    console.log('*** 通知設定ボタン押下');
+    router.push('/settings/notifications');
+  };
+
+  const handleSecurity = () => {
+    console.log('*** セキュリティ設定ボタン押下');
+    router.push('/settings/security');
+  };
+
+  const handleDataManagement = () => {
+    console.log('*** データ管理ボタン押下');
+    router.push('/settings/data-management');
+  };
+
   const handleSignOut = async () => {
     try {
       console.log('*** ログアウトボタン押下');
@@ -83,6 +98,54 @@ export default function SettingsScreen() {
             <View style={styles.menuContent}>
               <Text style={styles.menuTitle}>プロフィール編集</Text>
               <Text style={styles.menuSubtitle}>個人情報・会社情報の変更</Text>
+            </View>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+
+          {/* 通知設定 */}
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={handleNotifications}
+            activeOpacity={0.7}
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+            delayPressIn={0}
+            delayPressOut={0}
+          >
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>通知設定</Text>
+              <Text style={styles.menuSubtitle}>点呼リマインダーの設定</Text>
+            </View>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+
+          {/* セキュリティ設定 */}
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={handleSecurity}
+            activeOpacity={0.7}
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+            delayPressIn={0}
+            delayPressOut={0}
+          >
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>セキュリティ設定</Text>
+              <Text style={styles.menuSubtitle}>生体認証・データ保護の設定</Text>
+            </View>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+
+          {/* データ管理 */}
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={handleDataManagement}
+            activeOpacity={0.7}
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+            delayPressIn={0}
+            delayPressOut={0}
+          >
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>データ管理</Text>
+              <Text style={styles.menuSubtitle}>エクスポート・削除・バックアップ</Text>
             </View>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>

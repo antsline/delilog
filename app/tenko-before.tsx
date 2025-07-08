@@ -24,12 +24,18 @@ import { useTenko } from '@/hooks/useTenko';
 import { tenkoBeforeSchema, type TenkoBeforeFormData } from '@/types/tenkoValidation';
 import { VoiceInput } from '@/components/VoiceInput';
 import { TenkoService } from '@/services/tenkoService';
+import { useOfflineStore, useNetworkStatus, useIsOffline } from '@/store/offlineStore';
 
 export default function TenkoBeforeScreen() {
   const { user, profile } = useAuth();
   const { vehicles, todayStatus } = useTenko();
   const [submitting, setSubmitting] = React.useState(false);
   const [vehicleDropdownOpen, setVehicleDropdownOpen] = React.useState(false);
+  
+  // オフライン機能
+  const offlineStore = useOfflineStore();
+  const networkStatus = useNetworkStatus();
+  const isOffline = useIsOffline();
 
   // React Hook Form設定
   const {
@@ -98,33 +104,107 @@ export default function TenkoBeforeScreen() {
         type: 'before' as const,
         check_method: data.checkMethod,
         executor: data.executor,
+        alcohol_detector_used: true, // アルコール検知器使用
+        alcohol_detected: parseFloat(data.alcoholLevel) > 0, // アルコール検知有無
         alcohol_level: parseFloat(data.alcoholLevel),
         health_status: data.healthStatus,
         daily_check_completed: data.dailyCheckCompleted,
         notes: data.notes || undefined,
         platform: 'mobile' as const,
+        is_offline_created: false, // サーバー保存の場合はfalse
       };
 
-      await TenkoService.createTenkoRecord(tenkoData);
-      
-      // 成功フィードバック
-      Alert.alert(
-        '記録完了',
-        '業務前点呼を記録しました',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          }
-        ]
-      );
+      // オフライン時はローカル保存、オンライン時はサーバー保存
+      if (isOffline) {
+        // オフライン時のローカル保存
+        const localRecord = {
+          ...tenkoData,
+          local_id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          is_synced: false,
+          is_offline_created: true,
+          created_at_local: new Date().toISOString(),
+          updated_at_local: new Date().toISOString(),
+        };
+        
+        await offlineStore.saveLocalTenkoRecord(localRecord);
+        
+        Alert.alert(
+          '記録完了（オフライン）',
+          'オフライン記録として保存しました。\nネットワーク復旧時に自動同期されます。',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back(),
+            }
+          ]
+        );
+      } else {
+        // オンライン時のサーバー保存
+        await TenkoService.createTenkoRecord(tenkoData);
+        
+        Alert.alert(
+          '記録完了',
+          '業務前点呼を記録しました',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back(),
+            }
+          ]
+        );
+      }
       
     } catch (error) {
       console.error('点呼記録保存エラー:', error);
-      Alert.alert(
-        'エラー',
-        error instanceof Error ? error.message : '記録の保存に失敗しました'
-      );
+      
+      // オフライン時エラーの場合、ローカル保存を試行
+      if (isOffline || (error instanceof Error && error.message.includes('network'))) {
+        try {
+          const localRecord = {
+            user_id: user.id,
+            vehicle_id: data.vehicleId,
+            date: new Date().toISOString().split('T')[0],
+            type: 'before' as const,
+            check_method: data.checkMethod,
+            executor: data.executor,
+            alcohol_detector_used: true,
+            alcohol_detected: parseFloat(data.alcoholLevel) > 0,
+            alcohol_level: parseFloat(data.alcoholLevel),
+            health_status: data.healthStatus,
+            daily_check_completed: data.dailyCheckCompleted,
+            notes: data.notes || undefined,
+            platform: 'mobile' as const,
+            local_id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            is_synced: false,
+            is_offline_created: true,
+            created_at_local: new Date().toISOString(),
+            updated_at_local: new Date().toISOString(),
+          };
+          
+          await offlineStore.saveLocalTenkoRecord(localRecord);
+          
+          Alert.alert(
+            '記録完了（オフライン）',
+            'ネットワークエラーのため、オフライン記録として保存しました。',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.back(),
+              }
+            ]
+          );
+        } catch (localError) {
+          Alert.alert(
+            'エラー',
+            '記録の保存に失敗しました。しばらく時間をおいて再試行してください。'
+          );
+        }
+      } else {
+        Alert.alert(
+          'エラー',
+          error instanceof Error ? error.message : '記録の保存に失敗しました'
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -195,6 +275,19 @@ export default function TenkoBeforeScreen() {
           </TouchableOpacity>
           <Text style={styles.title}>業務前点呼</Text>
         </View>
+
+        {/* オフライン状態表示 */}
+        {isOffline && (
+          <View style={styles.offlineIndicator}>
+            <View style={styles.offlineIndicatorContent}>
+              <Feather name="wifi-off" size={16} color={colors.error} />
+              <Text style={styles.offlineIndicatorText}>
+                オフラインモード - ローカル保存されます
+              </Text>
+            </View>
+          </View>
+        )}
+
 
         {/* 実施日時 */}
         <View style={styles.section}>
@@ -500,7 +593,10 @@ export default function TenkoBeforeScreen() {
               styles.submitButtonText,
               (!isValid || submitting) && styles.submitButtonTextDisabled
             ]}>
-              {submitting ? '記録中...' : '業務前点呼を記録'}
+              {submitting ? 
+                (isOffline ? 'ローカル保存中...' : '記録中...') : 
+                (isOffline ? '業務前点呼を記録（オフライン）' : '業務前点呼を記録')
+              }
             </Text>
           </View>
         </TouchableOpacity>
@@ -912,17 +1008,23 @@ const styles = StyleSheet.create({
   dailyCheckOptionTextSelected: {
     color: colors.cream,
   },
-  // register.tsx から動作するスタイルをコピー
-  taskCard: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
+  // オフライン状態表示
+  offlineIndicator: {
+    backgroundColor: colors.error + '20',
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 16,
   },
-  taskTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    textAlign: 'center',
+  offlineIndicatorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  offlineIndicatorText: {
+    fontSize: 14,
+    color: colors.error,
+    fontWeight: '600',
   },
 });
