@@ -24,17 +24,21 @@ import {
   createAccessibleProps,
   accessibilityManager 
 } from '@/utils/accessibility';
+import { useSubscriptionStatus } from '@/store/subscriptionStore';
+import { FeatureLimitBanner, PremiumFeatureBlock } from '@/components/subscription/FeatureLimitBanner';
 
 function HomeScreen() {
   const { user, profile, loading: authLoading } = useAuth();
   const { todayStatus, loading: tenkoLoading, error, refreshData } = useTenko();
+  const subscriptionStatus = useSubscriptionStatus();
   const { checkMemoryUsage, recordScreenTransition } = usePerformanceMonitor();
   
   console.log('*** (tabs)/index.tsx レンダリング - 状態:', { 
     user: !!user, 
     userId: user?.id,
     profile: !!profile, 
-    authLoading 
+    authLoading,
+    isBasic: subscriptionStatus.isBasic
   });
   
   // 画面フォーカス時にデータを更新
@@ -110,6 +114,25 @@ function HomeScreen() {
 
         {/* 同期状態表示 */}
         <SyncStatusIndicator showDetails={true} style={styles.syncIndicator} />
+
+        {/* ベーシックプラン状態表示 */}
+        {!subscriptionStatus.isBasic && (
+          <FeatureLimitBanner
+            feature="records"
+            currentUsage={0} // 実際は点呼記録数を取得
+            limit={50}
+            message="無料プランでは50件まで記録できます"
+          />
+        )}
+
+        {/* トライアル表示 */}
+        {subscriptionStatus.trialDaysRemaining !== null && subscriptionStatus.trialDaysRemaining > 0 && (
+          <View style={styles.trialBanner}>
+            <Text style={styles.trialText}>
+              🎉 無料トライアル残り{subscriptionStatus.trialDaysRemaining}日
+            </Text>
+          </View>
+        )}
 
         {/* 今日のステータス */}
         <View style={styles.statusSection}>
@@ -455,6 +478,20 @@ const styles = StyleSheet.create({
   },
   syncIndicator: {
     marginBottom: 24,
+  },
+  trialBanner: {
+    backgroundColor: colors.success + '20',
+    borderColor: colors.success,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  trialText: {
+    color: colors.success,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

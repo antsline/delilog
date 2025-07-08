@@ -5,6 +5,8 @@ import { accessibilityManager } from '@/utils/accessibility';
 import { notificationService } from '@/services/notificationService';
 import { useOfflineStore } from '@/store/offlineStore';
 import { useSecurityStore } from '@/store/securityStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
+import { subscriptionSyncService } from '@/services/subscriptionSyncService';
 import React from 'react';
 
 export default function RootLayout() {
@@ -40,6 +42,16 @@ export default function RootLayout() {
   // セキュリティストア初期化
   React.useEffect(() => {
     useSecurityStore.getState().initialize();
+  }, []);
+
+  // サブスクリプションサービス初期化
+  React.useEffect(() => {
+    useSubscriptionStore.getState().initializeSubscription();
+    subscriptionSyncService.initialize();
+    
+    return () => {
+      subscriptionSyncService.cleanup();
+    };
   }, []);
 
   return (

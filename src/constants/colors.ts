@@ -10,6 +10,8 @@ export const colors = {
   warning: '#F59E0B',
   error: '#EF4444',
   info: '#3B82F6',
+  lightGray: '#F3F4F6',
+  lightOrange: '#FED7AA',
   
   // Text colors
   text: {

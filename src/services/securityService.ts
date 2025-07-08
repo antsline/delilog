@@ -6,9 +6,75 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
-import CryptoES from 'crypto-es';
+import * as CryptoESModule from 'crypto-es';
+
+// Handle different module loading scenarios
+const getCryptoES = (): any => {
+  // Try default export first
+  if ((CryptoESModule as any).default) {
+    return (CryptoESModule as any).default;
+  }
+  
+  // Try direct module access
+  if ((CryptoESModule as any).AES) {
+    return CryptoESModule as any;
+  }
+  
+  // Try require as fallback
+  try {
+    const crypto = require('crypto-es');
+    return crypto.default || crypto;
+  } catch (e) {
+    console.error('Failed to load crypto-es module:', e);
+    return null;
+  }
+};
+
+const CryptoES: any = getCryptoES();
 import { Platform } from 'react-native';
-import { Logger } from '@/utils/logger';
+import { Logger } from '../utils/logger';
+
+// Check if crypto-es is available without throwing error
+const isCryptoESAvailable = (): boolean => {
+  try {
+    return !!(CryptoES && 
+             CryptoES.AES && 
+             CryptoES.mode && 
+             CryptoES.mode.CBC && 
+             CryptoES.pad && 
+             CryptoES.pad.Pkcs7 && 
+             CryptoES.lib && 
+             CryptoES.lib.WordArray && 
+             CryptoES.enc && 
+             CryptoES.enc.Base64 && 
+             CryptoES.enc.Utf8);
+  } catch (error) {
+    console.error('Error checking crypto-es availability:', error);
+    return false;
+  }
+};
+
+// Validate crypto-es module is properly loaded
+const validateCryptoES = (): void => {
+  if (!CryptoES) {
+    throw new Error('crypto-es module is not loaded. Please check the module installation.');
+  }
+  if (!CryptoES.AES) {
+    throw new Error('crypto-es AES module is not available. Module may be corrupted.');
+  }
+  if (!CryptoES.mode || !CryptoES.mode.CBC) {
+    throw new Error('crypto-es CBC mode is not available. Required for secure encryption.');
+  }
+  if (!CryptoES.pad || !CryptoES.pad.Pkcs7) {
+    throw new Error('crypto-es padding is not available. Required for CBC mode.');
+  }
+  if (!CryptoES.lib || !CryptoES.lib.WordArray) {
+    throw new Error('crypto-es WordArray is not available. Required for IV generation.');
+  }
+  if (!CryptoES.enc || !CryptoES.enc.Base64 || !CryptoES.enc.Utf8) {
+    throw new Error('crypto-es encoding modules are not available. Required for data conversion.');
+  }
+};
 
 export interface BiometricAuthResult {
   success: boolean;
@@ -91,10 +157,11 @@ class SecurityService {
           biometryType: types[0],
         };
       } else {
-        Logger.warn('生体認証失敗', result.error);
+        const error = (result as any).error;
+        Logger.warn('生体認証失敗', error);
         return {
           success: false,
-          error: this.getBiometricErrorMessage(result.error),
+          error: this.getBiometricErrorMessage(error),
         };
       }
     } catch (error) {
@@ -194,27 +261,35 @@ class SecurityService {
   }
 
   /**
-   * データを暗号化（AES-256-GCM使用）
+   * データを暗号化（AES-256-CBC使用）
    */
   async encryptData(data: string): Promise<string> {
     try {
+      // crypto-es モジュールの利用可能性をチェック
+      if (!isCryptoESAvailable()) {
+        throw new Error('crypto-es module is not available for encryption');
+      }
+      
+      // crypto-es モジュールの検証
+      validateCryptoES();
+      
       // 暗号化キーを取得
       const encryptionKey = await this.getOrCreateEncryptionKey();
       
       // ランダムIV（初期化ベクター）を生成
-      const iv = CryptoES.lib.WordArray.random(12); // GCMモード用に12バイト
+      const iv = CryptoES.lib.WordArray.random(16); // CBCモード用に16バイト
       
-      // AES-256-GCMで暗号化
+      // AES-256-CBCで暗号化
       const encrypted = CryptoES.AES.encrypt(data, encryptionKey, {
         iv: iv,
-        mode: CryptoES.mode.GCM,
-        padding: CryptoES.pad.NoPadding
+        mode: CryptoES.mode.CBC,
+        padding: CryptoES.pad.Pkcs7
       });
       
       // IV + 暗号化データを結合してBase64エンコード
       const result = iv.toString(CryptoES.enc.Base64) + ':' + encrypted.toString();
       
-      Logger.security('データ暗号化完了（AES-256-GCM）');
+      Logger.security('データ暗号化完了（AES-256-CBC）');
       return result;
     } catch (error) {
       console.error('❌ データ暗号化エラー:', error);
@@ -223,10 +298,18 @@ class SecurityService {
   }
 
   /**
-   * データを復号化（AES-256-GCM使用）
+   * データを復号化（AES-256-CBC使用）
    */
   async decryptData(encryptedData: string): Promise<string> {
     try {
+      // crypto-es モジュールの利用可能性をチェック
+      if (!isCryptoESAvailable()) {
+        throw new Error('crypto-es module is not available for decryption');
+      }
+      
+      // crypto-es モジュールの検証
+      validateCryptoES();
+      
       const encryptionKey = await this.secureStoreGet(this.ENCRYPTION_KEY);
       
       if (!encryptionKey) {
@@ -245,11 +328,11 @@ class SecurityService {
       // IVを復元
       const iv = CryptoES.enc.Base64.parse(ivBase64);
       
-      // AES-256-GCMで復号化
+      // AES-256-CBCで復号化
       const decrypted = CryptoES.AES.decrypt(encryptedBase64, encryptionKey, {
         iv: iv,
-        mode: CryptoES.mode.GCM,
-        padding: CryptoES.pad.NoPadding
+        mode: CryptoES.mode.CBC,
+        padding: CryptoES.pad.Pkcs7
       });
       
       // UTF-8文字列に変換
@@ -259,7 +342,7 @@ class SecurityService {
         throw new Error('復号化に失敗しました（データが破損している可能性があります）');
       }
       
-      Logger.security('データ復号化完了（AES-256-GCM）');
+      Logger.security('データ復号化完了（AES-256-CBC）');
       return decryptedText;
     } catch (error) {
       console.error('❌ データ復号化エラー:', error);
@@ -331,6 +414,13 @@ class SecurityService {
   }
 
   /**
+   * 暗号化機能の利用可能性をチェック
+   */
+  isCryptoAvailable(): boolean {
+    return isCryptoESAvailable();
+  }
+
+  /**
    * セキュリティ状態の診断
    */
   async diagnoseSecurityStatus(): Promise<{
@@ -347,6 +437,15 @@ class SecurityService {
       // 暗号化機能テスト
       let encryptionWorking = false;
       try {
+        // crypto-es モジュールの利用可能性をチェック
+        if (!isCryptoESAvailable()) {
+          console.error('❌ crypto-es モジュールが利用できません');
+          throw new Error('crypto-es module is not available');
+        }
+        
+        // crypto-es モジュールの検証
+        validateCryptoES();
+        
         const testData = 'test_encryption_data_日本語テスト123';
         const encrypted = await this.encryptData(testData);
         const decrypted = await this.decryptData(encrypted);
@@ -354,6 +453,9 @@ class SecurityService {
         console.log('🧪 暗号化テスト結果:', encryptionWorking);
       } catch (error) {
         console.error('❌ 暗号化テストエラー:', error);
+        if (error instanceof Error) {
+          console.error('❌ エラー詳細:', error.message);
+        }
         encryptionWorking = false;
       }
 

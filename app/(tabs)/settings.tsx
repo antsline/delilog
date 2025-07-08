@@ -70,6 +70,27 @@ export default function SettingsScreen() {
 
         {/* 設定メニュー */}
         <View style={styles.menuSection}>
+          {/* ベーシックプラン */}
+          <TouchableOpacity 
+            style={[styles.menuItem, styles.basicMenuItem]}
+            onPress={() => router.push('/subscription')}
+            activeOpacity={0.7}
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+            delayPressIn={0}
+            delayPressOut={0}
+          >
+            <View style={styles.menuContent}>
+              <View style={styles.basicHeader}>
+                <Text style={[styles.menuTitle, styles.basicTitle]}>ベーシックプラン</Text>
+                <View style={styles.basicBadge}>
+                  <Text style={styles.basicBadgeText}>★</Text>
+                </View>
+              </View>
+              <Text style={styles.menuSubtitle}>基本機能が使える月額プラン</Text>
+            </View>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+
           {/* 車両管理 */}
           <TouchableOpacity 
             style={styles.menuItem}
@@ -258,5 +279,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.cream,
+  },
+  basicMenuItem: {
+    borderColor: colors.orange,
+    borderWidth: 2,
+    backgroundColor: colors.orange + '05',
+  },
+  basicHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  basicTitle: {
+    color: colors.orange,
+  },
+  basicBadge: {
+    marginLeft: 8,
+    backgroundColor: colors.orange,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  basicBadgeText: {
+    color: colors.cream,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

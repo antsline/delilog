@@ -61,12 +61,8 @@ export default function LoginScreen() {
   };
 
   const handleSMSAuth = async () => {
-    // SMS認証は電話番号入力が必要なので、別画面に遷移
-    Alert.alert(
-      'SMS認証',
-      'SMS認証機能は次のアップデートで実装予定です。',
-      [{ text: 'OK' }]
-    );
+    // SMS認証画面に遷移
+    router.push('/phone-signin');
   };
 
   const handleTestAuth = async () => {
