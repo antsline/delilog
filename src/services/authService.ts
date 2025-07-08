@@ -3,11 +3,23 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import { UserProfile } from '@/types/database';
+import { ErrorHandler } from '@/utils/errorHandler';
+import { AppError, ErrorCode } from '@/types/error';
+import { OPERATION_ERROR_MESSAGES } from '@/constants/errorMessages';
 
 export class AuthService {
   // Apple認証
-  static async signInWithApple() {
+  static async signInWithApple(): Promise<{ user: any; session: any }> {
     try {
+      // Apple認証の利用可能性チェック
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        throw {
+          code: 'unavailable',
+          message: 'Apple ID authentication is not available on this device',
+        };
+      }
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -21,19 +33,53 @@ export class AuthService {
           token: credential.identityToken,
         });
 
-        if (error) throw error;
+        if (error) {
+          throw ErrorHandler.handleSupabaseError(error, 'Apple authentication');
+        }
+
+        if (!data.user || !data.session) {
+          throw {
+            code: 'auth_failed',
+            message: 'Apple authentication succeeded but failed to create session',
+          };
+        }
+
         return data;
       } else {
-        throw new Error('Apple認証でトークンを取得できませんでした');
+        throw {
+          code: 'token_missing',
+          message: 'Apple authentication succeeded but no identity token received',
+        };
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Apple認証エラー:', error);
-      throw error;
+      
+      // Apple特有のエラーコード処理
+      if (error.code === 'ERR_REQUEST_CANCELED' || error.code === '1001') {
+        throw ErrorHandler.handleAuthError({
+          code: '1001',
+          message: 'User cancelled Apple authentication',
+        }, 'apple', 'signInWithApple');
+      }
+
+      if (error.code === 'unavailable') {
+        throw {
+          code: ErrorCode.FEATURE_UNAVAILABLE,
+          message: error.message,
+          userMessage: OPERATION_ERROR_MESSAGES.login.apple.unavailable,
+          severity: 'medium',
+          recoverable: false,
+          retryable: false,
+        } as AppError;
+      }
+
+      // その他のApple認証エラー
+      throw ErrorHandler.handleAuthError(error, 'apple', 'signInWithApple');
     }
   }
 
   // Google認証
-  static async signInWithGoogle() {
+  static async signInWithGoogle(): Promise<{ user: any; session: any; url?: string }> {
     try {
       // Supabase OAuth URLを使用
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -45,25 +91,63 @@ export class AuthService {
         },
       });
 
-      if (error) throw error;
-      
-      if (data.url) {
-        // OAuth URLでブラウザを開く
-        const result = await AuthSession.startAsync({
-          authUrl: data.url,
-        });
-
-        if (result.type === 'success') {
-          return data;
-        } else {
-          throw new Error('Google認証がキャンセルされました');
-        }
-      } else {
-        throw new Error('Google認証URLの取得に失敗しました');
+      if (error) {
+        throw ErrorHandler.handleSupabaseError(error, 'Google OAuth URL generation');
       }
-    } catch (error) {
+      
+      if (!data.url) {
+        throw {
+          code: 'url_missing',
+          message: 'Google OAuth URL generation succeeded but no URL received',
+        };
+      }
+
+      // OAuth URLでブラウザを開く
+      const result = await AuthSession.startAsync({
+        authUrl: data.url,
+      });
+
+      if (result.type === 'success') {
+        // 認証成功後、セッション情報を取得
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          throw ErrorHandler.handleSupabaseError(sessionError, 'Google authentication session retrieval');
+        }
+
+        if (!sessionData.session) {
+          throw {
+            code: 'session_missing',
+            message: 'Google authentication succeeded but no session created',
+          };
+        }
+
+        return {
+          user: sessionData.session.user,
+          session: sessionData.session,
+          url: data.url,
+        };
+      } else if (result.type === 'cancel') {
+        throw ErrorHandler.handleAuthError({
+          type: 'cancel',
+          message: 'User cancelled Google authentication',
+        }, 'google', 'signInWithGoogle');
+      } else {
+        throw {
+          code: 'auth_failed',
+          message: `Google authentication failed: ${result.type}`,
+        };
+      }
+    } catch (error: any) {
       console.error('Google認証エラー:', error);
-      throw error;
+      
+      // 既にAppErrorの場合はそのまま投げる
+      if (error.code && error.userMessage) {
+        throw error;
+      }
+
+      // その他のGoogle認証エラー
+      throw ErrorHandler.handleAuthError(error, 'google', 'signInWithGoogle');
     }
   }
 

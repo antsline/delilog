@@ -72,7 +72,7 @@ export default function PDFExportScreen() {
 
   // タイムアウト機能を追加して状態をリセット
   React.useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: number;
     
     if (pdfState.isSharing) {
       // 共有が2秒以上続く場合は強制的にリセット（AppStateで検出できない場合のフォールバック）
