@@ -5,32 +5,25 @@ export default function SettingsLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.cream,
-        },
-        headerTintColor: colors.charcoal,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-        headerBackTitle: '戻る',
+        headerShown: false,
       }}
     >
       <Stack.Screen
         name="vehicles"
         options={{
-          title: '車両管理',
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="profile"
         options={{
-          title: 'プロフィール編集',
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="about"
         options={{
-          title: 'アプリについて',
+          headerShown: false,
         }}
       />
     </Stack>

@@ -51,8 +51,6 @@ export default function SettingsScreen() {
         {/* ヘッダー部分 */}
         <View style={styles.header}>
           <Text style={styles.title}>設定</Text>
-          <Text style={styles.userInfo}>{profile?.driver_name}</Text>
-          <Text style={styles.companyInfo}>{profile?.company_name}</Text>
         </View>
 
         {/* 設定メニュー */}
@@ -159,7 +157,7 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.cream,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: colors.beige,
     borderRadius: 16,

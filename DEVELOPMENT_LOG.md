@@ -385,6 +385,157 @@ if (authLoading && !(user && profile)) {
 }
 ```
 
+## Week 5+: UI/UXデザイン統一作業（2025年7月8日）
+
+### 完了した主要作業
+
+#### ヘッダーデザインの統一
+**問題**: タブページ間でヘッダーデザインにばらつきがあり、統一感に欠けていた
+
+**解決策**: 設定ページのシンプルなヘッダーデザインを基準に全ページを統一
+- **基本構造**: SafeAreaView + StatusBar + ヘッダー
+- **スタイル仕様**: 28px太字タイトル、20px水平padding、32px下padding
+- **背景色**: `colors.cream`で統一
+
+**適用したページ**:
+1. **記録一覧ページ（records.tsx）**
+   - SafeAreaViewとStatusBarを追加
+   - 「記録一覧」タイトルのヘッダーを新設
+   - 年月ナビゲーションをヘッダー外に分離
+   - 矢印ボタンをシンプルなデザインに変更（枠線削除）
+
+2. **PDF出力ページ（pdf-export.tsx）**
+   - ヘッダーを統一デザインに変更
+   - 不要なサブタイトルを削除
+   - セクション間の余白を調整（設定ページと同様の間隔に）
+
+#### 背景色ルールの策定と適用
+**新ルール**: 機能別背景色の明確化
+- **ボタン・タップ可能要素**: 白背景（`#FFFFFF`）
+- **情報表示要素**: ベージュ背景（`colors.cream`）
+
+**適用作業**:
+- **設定ページ**: メニューボタンの背景を白色に変更
+- **記録一覧ページ**: 背景色を薄いグレーからベージュに統一
+
+#### UIデザインの細かい調整
+1. **PDF出力ページ**: 選択項目の枠線色をオレンジから黒に変更
+2. **記録一覧ページ**: 月切り替えボタンのデザイン簡略化
+3. **全体**: 余白・間隔の微調整
+
+### 技術的な実装詳細
+
+#### 統一ヘッダーの実装パターン
+```typescript
+// 基本構造
+<SafeAreaView style={{ flex: 1, backgroundColor: colors.cream }}>
+  <StatusBar style="dark" backgroundColor={colors.cream} />
+  
+  <View style={styles.header}>
+    <Text style={styles.title}>ページタイトル</Text>
+  </View>
+  
+  <ScrollView style={styles.scrollView}>
+    {/* コンテンツ */}
+  </ScrollView>
+</SafeAreaView>
+
+// スタイル定義
+const styles = {
+  header: {
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    backgroundColor: colors.cream,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.charcoal,
+    marginBottom: 8,
+  },
+};
+```
+
+#### 機能別背景色の実装
+```typescript
+// タップ可能要素
+<TouchableOpacity
+  style={{
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.beige,
+    borderRadius: 12,
+  }}
+>
+
+// 情報表示要素
+<View
+  style={{
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.beige,
+    borderRadius: 12,
+  }}
+>
+```
+
+### デザインシステムドキュメントの更新
+
+**追加したセクション**:
+1. **統一ヘッダーデザイン仕様（セクション12）**
+   - 基本構造とスタイル定義
+   - StatusBar設定
+   - 適用例外の明記
+
+2. **ボックス背景色ルール（セクション13）**
+   - 機能別背景色ルール
+   - 実装例とUX向上の理由
+   - 視覚的区別の重要性
+
+### 現在の開発状況（Week 5+ UI統一完了時点）
+
+#### ✅ 完了済み機能
+1. **認証機能**: Apple ID、Google、テスト認証
+2. **プロフィール管理**: 作成・編集機能
+3. **車両管理**: 完全なCRUD操作
+4. **点呼記録**: 業務前・業務後の記録機能
+5. **ホーム画面**: 今日の状況表示とナビゲーション
+6. **設定画面**: 3タブ構成（プロフィール・車両・その他）
+7. **記録一覧画面**: 月別カレンダー表示、運行なし日設定
+8. **PDF出力機能**: 週単位での点呼記録簿生成・共有
+9. **UI/UXデザイン統一**: ヘッダー・背景色・間隔の標準化
+
+#### 🎨 UI/UXの改善点
+- **統一感向上**: 全ページで一貫したヘッダーデザイン
+- **操作性向上**: 機能別背景色による直感的なUI
+- **視認性向上**: 適切な余白と間隔の調整
+- **ブランド統一**: delilogアーシーカラーパレットの徹底適用
+
+### 技術スタック（最終確定）
+```json
+{
+  "expo": "~52.0.11",
+  "expo-router": "3.5.18",
+  "react": "18.3.1",
+  "react-native": "0.79.4",
+  "@supabase/supabase-js": "^2.39.3",
+  "zustand": "^4.4.7",
+  "react-hook-form": "^7.48.2",
+  "zod": "^3.22.4",
+  "expo-sharing": "^12.0.1",
+  "expo-print": "^13.0.1"
+}
+```
+
+### Week 6への引き継ぎ事項
+
+1. **機能追加**: 追加要件があれば対応
+2. **パフォーマンス最適化**: 大量データ処理の改善
+3. **テスト強化**: ユニットテスト・E2Eテストの追加
+4. **ドキュメント整備**: ユーザーマニュアル・API仕様書
+5. **リリース準備**: App Store/Google Playストア申請準備
+
 ## 開発原則の遵守
 
 `DEVELOPMENT_PRINCIPLES.md`に記載の原則を必ず守ること：

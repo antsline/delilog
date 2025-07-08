@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { TenkoRecord, TenkoRecordInsert, Vehicle } from '@/types/database';
+import { TenkoRecord, TenkoRecordInsert, Vehicle, NoOperationDay } from '@/types/database';
 
 export class TenkoService {
   // 今日の点呼記録を取得
@@ -59,6 +59,35 @@ export class TenkoService {
 
     if (error) throw error;
     return data || [];
+  }
+
+  // 指定月の点呼記録を取得
+  static async getRecordsByMonth(
+    userId: string,
+    year: number,
+    month: number
+  ): Promise<TenkoRecord[]> {
+    // 月の最初と最後の日付を計算
+    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+    
+    return this.getRecordsByDateRange(userId, startDate, endDate);
+  }
+
+  // 指定月の点呼記録と運行なし日を取得
+  static async getMonthlyRecordsWithNoOperation(
+    userId: string,
+    year: number,
+    month: number
+  ): Promise<{ records: TenkoRecord[], noOperationDays: NoOperationDay[] }> {
+    const { NoOperationService } = await import('./noOperationService');
+    
+    const [records, noOperationDays] = await Promise.all([
+      this.getRecordsByMonth(userId, year, month),
+      NoOperationService.getNoOperationDaysByMonth(userId, year, month)
+    ]);
+    
+    return { records, noOperationDays };
   }
 
   // ユーザーの車両一覧を取得（VehicleServiceに委譲）

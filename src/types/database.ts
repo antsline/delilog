@@ -41,7 +41,22 @@ export interface TenkoRecord {
   updated_at: string;
 }
 
+export interface NoOperationDay {
+  id: string;
+  user_id: string;
+  date: string;
+  reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Insert用の型定義
+export interface NoOperationDayInsert {
+  user_id: string;
+  date: string;
+  reason?: string;
+}
+
 export interface UserProfileInsert {
   id: string;
   company_name: string;

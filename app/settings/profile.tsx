@@ -34,7 +34,6 @@ export default function ProfileScreen() {
     defaultValues: {
       companyName: profile?.company_name || '',
       driverName: profile?.driver_name || '',
-      officeName: profile?.office_name || '',
     },
     mode: 'onChange',
   });
@@ -47,7 +46,6 @@ export default function ProfileScreen() {
       await AuthService.updateUserProfile({
         companyName: data.companyName.trim(),
         driverName: data.driverName.trim(),
-        officeName: data.officeName?.trim() || undefined,
       });
       
       // プロフィール情報を再取得
@@ -151,32 +149,6 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          {/* 営業所名 */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>営業所名</Text>
-            <Controller
-              control={control}
-              name="officeName"
-              render={({ field: { value, onChange } }) => (
-                <TextInput
-                  style={[styles.input, errors.officeName && styles.inputError]}
-                  value={value}
-                  onChangeText={onChange}
-                  placeholder="例：東京営業所（任意）"
-                  placeholderTextColor={colors.beige}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  onSubmitEditing={() => {
-                    Keyboard.dismiss();
-                  }}
-                />
-              )}
-            />
-            {errors.officeName && (
-              <Text style={styles.errorText}>{errors.officeName.message}</Text>
-            )}
-          </View>
         </View>
       </ScrollView>
 

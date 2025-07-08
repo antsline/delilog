@@ -73,8 +73,11 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <Text style={styles.greeting}>おはようございます</Text>
           <Text style={styles.userName}>{profile?.driver_name || 'ドライバー'}さん</Text>
-          <Text style={styles.date}>{todayString}</Text>
-          <Text style={styles.companyName}>{profile?.company_name}</Text>
+        </View>
+
+        {/* 日付カード */}
+        <View style={styles.dateCard}>
+          <Text style={styles.dateCardText}>{todayString}</Text>
         </View>
 
         {/* 今日のステータス */}
@@ -94,12 +97,12 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.statusCard}>
-              <View style={styles.statusRow}>
-                <View style={styles.statusItem}>
-                  <Text style={styles.statusLabel}>業務前点呼</Text>
+            <View style={styles.statusRow}>
+              <View style={styles.statusBox}>
+                <View style={styles.statusContent}>
+                  <Text style={styles.statusLabelInline}>業務前{'\n'}点呼</Text>
                   <View style={[
-                    styles.statusIndicator, 
+                    styles.statusTagInline, 
                     todayStatus.beforeCompleted ? styles.statusCompleted : styles.statusPending
                   ]}>
                     <Text style={[
@@ -110,11 +113,13 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                 </View>
-                
-                <View style={styles.statusItem}>
-                  <Text style={styles.statusLabel}>業務後点呼</Text>
+              </View>
+              
+              <View style={styles.statusBox}>
+                <View style={styles.statusContent}>
+                  <Text style={styles.statusLabelInline}>業務後{'\n'}点呼</Text>
                   <View style={[
-                    styles.statusIndicator, 
+                    styles.statusTagInline, 
                     todayStatus.afterCompleted ? styles.statusCompleted : styles.statusPending
                   ]}>
                     <Text style={[
@@ -223,15 +228,19 @@ const styles = StyleSheet.create({
     color: colors.charcoal,
     marginBottom: 8,
   },
-  date: {
-    fontSize: 14,
-    color: colors.darkGray,
-    marginBottom: 4,
+  dateCard: {
+    backgroundColor: colors.cream,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1.5,
+    borderColor: colors.beige,
+    alignItems: 'center',
   },
-  companyName: {
+  dateCardText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.orange,
+    color: colors.charcoal,
   },
   sectionTitle: {
     fontSize: 18,
@@ -242,39 +251,43 @@ const styles = StyleSheet.create({
   statusSection: {
     marginBottom: 32,
   },
-  statusCard: {
+  statusRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statusBox: {
+    flex: 1,
     backgroundColor: colors.cream,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1.5,
     borderColor: colors.beige,
   },
-  statusRow: {
+  statusContent: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  statusItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statusLabel: {
+  statusLabelInline: {
     fontSize: 14,
-    color: colors.darkGray,
-    marginBottom: 8,
-    textAlign: 'center',
+    color: colors.charcoal,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'left',
+    lineHeight: 18,
   },
-  statusIndicator: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    minWidth: 80,
+  statusTagInline: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    minWidth: 60,
     alignItems: 'center',
   },
   statusPending: {
     backgroundColor: colors.beige,
   },
   statusCompleted: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.orange,
   },
   statusText: {
     fontSize: 12,

@@ -545,3 +545,138 @@ const colors = scheme === 'dark' ? colors.dark : colors.light;
 2. 既存コンポーネントも段階的に新デザインシステムに移行
 3. カラーパレットは新仕様（cream, charcoal等）を優先使用
 4. 技術的な実装詳細は本ドキュメントを参照
+
+## 12. 統一ヘッダーデザイン仕様（2025年7月8日追加）
+
+### 12.1 基本構造
+
+全てのタブページで統一されたヘッダーデザインを使用する：
+
+```typescript
+// React Native実装例
+<SafeAreaView style={{ flex: 1, backgroundColor: colors.cream }}>
+  <StatusBar style="dark" backgroundColor={colors.cream} />
+  
+  {/* ヘッダー部分 */}
+  <View style={styles.header}>
+    <Text style={styles.title}>ページタイトル</Text>
+  </View>
+  
+  {/* コンテンツ */}
+  <ScrollView style={styles.scrollView}>
+    {/* 各ページのコンテンツ */}
+  </ScrollView>
+</SafeAreaView>
+```
+
+### 12.2 ヘッダースタイル定義
+
+```scss
+// ヘッダーコンテナ
+.header {
+  padding-top: 20px;
+  padding-horizontal: 20px;
+  padding-bottom: 32px;
+  background-color: $cream;
+}
+
+// タイトルテキスト
+.title {
+  font-size: 28px;
+  font-weight: bold;
+  color: $charcoal;
+  margin-bottom: 8px;
+}
+```
+
+### 12.3 適用例外
+
+- **ホーム画面（index.tsx）**: 特別仕様（ユーザー名表示）のため統一デザイン対象外
+- **サブページ（settings/配下等）**: 独自のヘッダー要件がある場合は個別対応
+
+### 12.4 StatusBar設定
+
+```typescript
+<StatusBar style="dark" backgroundColor={colors.cream} />
+```
+
+- **スタイル**: `dark`（ダークコンテンツ）
+- **背景色**: `colors.cream`で統一
+
+## 13. ボックス背景色ルール（2025年7月8日追加）
+
+### 13.1 機能別背景色ルール
+
+```scss
+// ボタンとして機能するボックス
+.interactive-box {
+  background-color: white; // #FFFFFF
+  border-width: 1px;
+  border-color: $beige; // #CCC5B9
+  border-radius: 12px;
+  
+  // タップ状態
+  &:active {
+    background-color: #f8f9fa;
+  }
+}
+
+// 情報表示のみのボックス
+.info-box {
+  background-color: $cream; // #FFFCF2
+  border-width: 1px;
+  border-color: $beige; // #CCC5B9
+  border-radius: 12px;
+}
+```
+
+### 13.2 適用ルール
+
+1. **ボタン・タップ可能要素**: 白背景（`#FFFFFF`）
+   - TouchableOpacity
+   - Pressable
+   - Button
+   - カード（タップで詳細画面に遷移）
+
+2. **情報表示要素**: ベージュ背景（`colors.cream`）
+   - テキスト表示のみ
+   - 読み取り専用データ
+   - ステータス表示
+   - ヘルプテキスト
+
+### 13.3 実装例
+
+```typescript
+// タップ可能なカード
+<TouchableOpacity
+  style={{
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.beige,
+    borderRadius: 12,
+    padding: 16,
+  }}
+  onPress={handlePress}
+>
+  <Text>車両管理</Text>
+</TouchableOpacity>
+
+// 情報表示カード
+<View
+  style={{
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.beige,
+    borderRadius: 12,
+    padding: 16,
+  }}
+>
+  <Text>今日の状況: 完了</Text>
+</View>
+```
+
+### 13.4 視覚的区別の重要性
+
+- **UX向上**: ユーザーがタップ可能かどうかを瞬時に判別可能
+- **一貫性**: アプリ全体で統一されたインタラクション指針
+- **アクセシビリティ**: 機能の違いを色で明確に区別

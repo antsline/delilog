@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点呼記録簿</title>
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 10mm;
+        }
+        
+        body {
+            font-family: 'MS Gothic', monospace;
+            font-size: 9pt;
+            margin: 10mm;
+            padding: 0;
+            background-color: white;
+            width: calc(297mm - 20mm); /* A4横向き(297mm) - 左右余白(20mm) */
+            height: calc(210mm - 20mm); /* A4横向き(210mm) - 上下余白(20mm) */
+            box-sizing: border-box;
+        }
+        
+        .header {
+            text-align: center;
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 5mm;
+            height: 6mm;
+            line-height: 6mm;
+        }
+        
+        .company-info {
+            display: flex;
+            margin-bottom: 5mm;
+            margin-left: 6mm;
+            gap: 15mm;
+            height: 6mm;
+            align-items: center;
+        }
+        
+        .year-field {
+            font-size: 14pt;
+            font-weight: bold;
+            padding-right: 5mm;
+            margin-left: 5mm;
+        }
+        
+        .company-field {
+            display: flex;
+            align-items: center;
+            border: 1px solid #000;
+            padding: 1mm;
+            width: 80mm;
+            height: 6mm;
+        }
+        
+        .company-field label {
+            background-color: #f0f0f0;
+            padding: 1mm 3mm;
+            border-right: 1px solid #000;
+            font-weight: bold;
+            width: 15mm;
+            font-size: 8pt;
+            text-align: center;
+        }
+        
+        .company-field input {
+            border: none;
+            outline: none;
+            padding: 1mm 2mm;
+            flex: 1;
+            font-size: 8pt;
+        }
+        
+        .main-table {
+            width: 265mm;
+            border-collapse: collapse;
+            border: 1.5pt solid #000;
+            font-size: 7pt;
+            table-layout: fixed;
+            margin: 0;
+        }
+        
+        .main-table colgroup col:nth-child(1) { width: 21mm !important; }
+        .main-table colgroup col:nth-child(2) { width: 22mm !important; }
+        .main-table colgroup col:nth-child(3) { width: 14mm !important; }
+        .main-table colgroup col:nth-child(4) { width: 18mm !important; }
+        .main-table colgroup col:nth-child(5) { width: 14mm !important; }
+        .main-table colgroup col:nth-child(6) { width: 14mm !important; }
+        .main-table colgroup col:nth-child(7) { width: 40mm !important; }
+        .main-table colgroup col:nth-child(8) { width: 22mm !important; }
+        .main-table colgroup col:nth-child(9) { width: 14mm !important; }
+        .main-table colgroup col:nth-child(10) { width: 18mm !important; }
+        .main-table colgroup col:nth-child(11) { width: 14mm !important; }
+        .main-table colgroup col:nth-child(12) { width: 14mm !important; }
+        .main-table colgroup col:nth-child(13) { width: 40mm !important; }
+        
+        .main-table th,
+        .main-table td {
+            border: 0.5pt solid #000;
+            padding: 0.5mm;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 8pt;
+            line-height: 1.5;
+            height: 17mm;
+            overflow: hidden;
+        }
+        
+        .main-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            height: 6mm;
+        }
+        
+        .section-header {
+            background-color: #e0e0e0;
+            font-weight: bold;
+            font-size: 9pt;
+            height: 8mm;
+        }
+        
+        .vehicle-number {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            width: 21mm !important;
+            min-width: 21mm !important;
+            max-width: 21mm !important;
+            background-color: white;
+            font-size: 8pt;
+        }
+        
+        .date-time {
+            width: 22mm !important;
+            min-width: 22mm !important;
+            max-width: 22mm !important;
+        }
+        
+        .method {
+            width: 14mm !important;
+            min-width: 14mm !important;
+            max-width: 14mm !important;
+        }
+        
+        .alcohol {
+            width: 18mm !important;
+            min-width: 18mm !important;
+            max-width: 18mm !important;
+        }
+        
+        .health {
+            width: 14mm !important;
+            min-width: 14mm !important;
+            max-width: 14mm !important;
+        }
+        
+        .inspection {
+            width: 14mm !important;
+            min-width: 14mm !important;
+            max-width: 14mm !important;
+        }
+        
+        .operation {
+            width: 14mm !important;
+            min-width: 14mm !important;
+            max-width: 14mm !important;
+        }
+        
+        .notes {
+            width: 40mm !important;
+            min-width: 40mm !important;
+            max-width: 40mm !important;
+        }
+        
+        .date-input {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1mm;
+            font-size: 7pt;
+            line-height: 1.5;
+        }
+        
+        .date-input input {
+            width: 6mm;
+            border: none;
+            text-align: center;
+            font-size: 7pt;
+            background: transparent;
+        }
+        
+        .time-input {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1mm;
+            font-size: 7pt;
+            line-height: 1.5;
+        }
+        
+        .time-input input {
+            width: 6mm;
+            border: none;
+            text-align: center;
+            font-size: 7pt;
+            background: transparent;
+        }
+        
+        .footer {
+            margin-top: 2mm;
+            font-size: 7pt;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 4mm;
+            width: 265mm;
+        }
+        
+        .tencore-logo {
+            border: 0.5pt solid #000;
+            padding: 1mm 3mm;
+            font-size: 7pt;
+        }
+        
+        .pre-work {
+            background-color: #f8f8f8;
+        }
+        
+        .post-work {
+            background-color: #f0f0f0;
+        }
+        
+        .fixed-value {
+            font-size: 7pt;
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        input[type="text"] {
+            background: transparent;
+            border: none;
+            outline: none;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            font-size: 7pt;
+            padding: 0;
+        }
+        
+        .checkbox-cell {
+            position: relative;
+        }
+        
+        .checkbox-cell input[type="checkbox"] {
+            transform: scale(0.6);
+        }
+        
+        /* 印刷用の設定 */
+        @media print {
+            body {
+                width: calc(297mm - 20mm);
+                height: calc(210mm - 20mm);
+                margin: 10mm;
+                padding: 0;
+            }
+            
+            .main-table {
+                page-break-inside: avoid;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">点呼記録簿</div>
+    
+    <div class="company-info">
+        <div class="year-field">2025年</div>
+        <div class="company-field">
+            <label>屋号</label>
+            <input type="text" name="company_name">
+        </div>
+        <div class="company-field">
+            <label>氏名</label>
+            <input type="text" name="driver_name">
+        </div>
+    </div>
+    
+    <table class="main-table">
+        <colgroup>
+            <col style="width: 21mm;">
+            <col style="width: 22mm;">
+            <col style="width: 14mm;">
+            <col style="width: 18mm;">
+            <col style="width: 14mm;">
+            <col style="width: 14mm;">
+            <col style="width: 40mm;">
+            <col style="width: 22mm;">
+            <col style="width: 14mm;">
+            <col style="width: 18mm;">
+            <col style="width: 14mm;">
+            <col style="width: 14mm;">
+            <col style="width: 40mm;">
+        </colgroup>
+        <thead>
+            <tr>
+                <th rowspan="3" class="vehicle-number">車両番号</th>
+                <th colspan="6" class="section-header pre-work">業務前点呼</th>
+                <th colspan="6" class="section-header post-work">業務後点呼</th>
+            </tr>
+            <tr>
+                <th class="date-time">実施日時</th>
+                <th class="method">点呼方法<br />執行者</th>
+                
+                <th class="alcohol">酒気帯び<br />の有無</th>
+                <th class="health">健康状況</th>
+                <th class="inspection">日常点検<br />の実施</th>
+                <th class="notes">特記事項</th>
+                <th class="date-time">実施日時</th>
+                <th class="method">点呼方法<br />執行者</th>
+
+                <th class="alcohol">酒気帯び<br />の有無</th>
+                <th class="health">健康状況</th>
+                <th class="operation">運行状況</th>
+                <th class="notes">特記事項</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="vehicle-number">
+                    <input type="text" name="vehicle_number_1" style="writing-mode: vertical-rl; text-orientation: mixed;">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="inspection">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="operation">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+            </tr>
+            <tr>
+                <td class="vehicle-number">
+                    <input type="text" name="vehicle_number_2" style="writing-mode: vertical-rl; text-orientation: mixed;">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="inspection">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="operation">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+            </tr>
+            <tr>
+                <td class="vehicle-number">
+                    <input type="text" name="vehicle_number_3" style="writing-mode: vertical-rl; text-orientation: mixed;">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="inspection">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="operation">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+            </tr>
+            <tr>
+                <td class="vehicle-number">
+                    <input type="text" name="vehicle_number_4" style="writing-mode: vertical-rl; text-orientation: mixed;">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="inspection">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="operation">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+            </tr>
+            <tr>
+                <td class="vehicle-number">
+                    <input type="text" name="vehicle_number_5" style="writing-mode: vertical-rl; text-orientation: mixed;">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="inspection">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="operation">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+            </tr>
+            <tr>
+                <td class="vehicle-number">
+                    <input type="text" name="vehicle_number_6" style="writing-mode: vertical-rl; text-orientation: mixed;">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>   
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="inspection">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="operation">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+            </tr>
+
+
+
+            <tr>
+                <td class="vehicle-number">
+                    <input type="text" name="vehicle_number_7" style="writing-mode: vertical-rl; text-orientation: mixed;">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="inspection">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+                <td class="date-time">
+                    <div class="date-input">
+                        <input type="text" maxlength="2" placeholder="">月
+                        <input type="text" maxlength="2" placeholder="">日
+                    </div>
+                    <div class="time-input">
+                        <input type="text" maxlength="2" placeholder="">:
+                        <input type="text" maxlength="2" placeholder="">
+                    </div>
+                </td>
+                <td class="method">
+                    <div class="fixed-value">対面</div>
+                    <div class="fixed-value">本人</div>
+                </td>   
+                <td class="alcohol">
+                    <div class="fixed-value">使用</div>
+                    <div class="fixed-value">0.00mg/L</div>
+                </td>
+                <td class="health">
+                    <input type="text">
+                </td>
+                <td class="operation">
+                    <input type="text">
+                </td>
+                <td class="notes">
+                    <input type="text">
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <div class="note">注）点呼の記録は１年間保存しなければいけません。</div>
+        <div class="tencore-logo">Created by delilog</div>
+    </div>
+</body>
+</html> 
