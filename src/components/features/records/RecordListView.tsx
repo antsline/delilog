@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { TenkoRecord, NoOperationDay } from '@/types/database';
 import { generateDayList, formatDateDisplay } from '@/utils/dateUtils';
 import { NoOperationService } from '@/services/noOperationService';
@@ -8,6 +8,9 @@ import { Feather } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { router } from 'expo-router';
 import { withPerformanceMonitoring, usePerformanceMonitor } from '@/utils/performanceMonitor';
+import { useOptimizedCallback } from '@/hooks/useOptimizedPerformance';
+import { recordComponentOptimization } from '@/utils/performanceReporter';
+import DayRecordCard from './DayRecordCard';
 
 interface RecordListViewProps {
   year: number;
@@ -32,7 +35,7 @@ interface DayRecord {
   isWeekend: boolean;
 }
 
-export default function RecordListView({
+function RecordListView({
   year,
   month,
   records,
@@ -44,19 +47,35 @@ export default function RecordListView({
   const { user } = useAuthStore();
   const { checkMemoryUsage, recordRenderTime } = usePerformanceMonitor();
   
-  // レンダリング時間計測
-  const renderStartTime = React.useRef<number>();
-  React.useEffect(() => {
-    renderStartTime.current = Date.now();
-  }, []);
-  
-  React.useEffect(() => {
-    if (renderStartTime.current) {
-      const renderTime = Date.now() - renderStartTime.current;
-      recordRenderTime('RecordListView', renderTime);
-    }
-    checkMemoryUsage('RecordListView');
+  // パフォーマンス計測（改善版）
+  const performanceMetrics = React.useRef({
+    renderStart: performance.now(),
+    mountTime: 0,
+    updateCount: 0,
   });
+
+  // 初回マウント時の計測
+  React.useLayoutEffect(() => {
+    const mountTime = performance.now() - performanceMetrics.current.renderStart;
+    performanceMetrics.current.mountTime = mountTime;
+    recordRenderTime('RecordListView_Mount', mountTime);
+    checkMemoryUsage('RecordListView_Mount');
+    
+    // 最適化記録
+    recordComponentOptimization('RecordListView');
+  }, []);
+
+  // 更新時の計測（依存配列変更時のみ）
+  React.useEffect(() => {
+    performanceMetrics.current.updateCount++;
+    const updateStart = performance.now();
+    
+    return () => {
+      const updateTime = performance.now() - updateStart;
+      recordRenderTime('RecordListView_Update', updateTime);
+      checkMemoryUsage('RecordListView_Update');
+    };
+  }, [year, month, records.length, noOperationDays.length]);
   // 月の日数リストを生成
   const dayList = generateDayList(year, month);
   
@@ -169,8 +188,8 @@ export default function RecordListView({
     });
   };
 
-  // 運行なし状態の切り替え
-  const toggleNoOperation = async (date: string) => {
+  // 運行なし状態の切り替え（最適化）
+  const toggleNoOperation = useOptimizedCallback(async (date: string) => {
     if (!user) return;
     
     try {
@@ -197,7 +216,55 @@ export default function RecordListView({
       console.error('運行なし状態の切り替えに失敗:', error);
       Alert.alert('エラー', '設定の変更に失敗しました');
     }
-  };
+  }, [user, noOperationMap, onDataChanged]);
+
+  // 最適化された日記録カードラッパー
+  const OptimizedDayRecordCard = React.memo(({ 
+    dayRecord,
+    onPress,
+    onLongPress,
+    onPDFExport
+  }: {
+    dayRecord: DayRecord;
+    onPress: () => void;
+    onLongPress: () => void;
+    onPDFExport: () => void;
+  }) => {
+    return (
+      <View style={styles.recordItemContainer}>
+        <TouchableOpacity 
+          style={styles.recordItemTouch}
+          onPress={onPress}
+          onLongPress={onLongPress}
+        >
+          <DayRecordCard
+            date={dayRecord.date}
+            dayOfMonth={dayRecord.dayOfMonth}
+            isToday={dayRecord.isToday}
+            hasBeforeRecord={dayRecord.hasBeforeRecord}
+            hasAfterRecord={dayRecord.hasAfterRecord}
+            isComplete={dayRecord.isComplete}
+            isNoOperation={dayRecord.isNoOperation}
+            isSaturday={dayRecord.isSaturday}
+            isSunday={dayRecord.isSunday}
+            isWeekend={dayRecord.isWeekend}
+            onNoOperationToggle={toggleNoOperation}
+          />
+          
+          {/* PDF出力ボタン */}
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onPDFExport();
+            }}
+            style={styles.pdfButton}
+          >
+            <Feather name="file-text" size={16} color="#fff" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+    );
+  });
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }}>
@@ -261,91 +328,41 @@ export default function RecordListView({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16 }}
       >
-        {dayRecordsList.map((dayRecord) => (
-          <TouchableOpacity
+{dayRecordsList.map((dayRecord) => (
+          <OptimizedDayRecordCard
             key={dayRecord.date}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              padding: 16,
-              backgroundColor: '#fff',
-              borderRadius: 12,
-              marginBottom: 8,
-              borderWidth: dayRecord.isToday ? 2 : 1,
-              borderColor: dayRecord.isToday ? '#000' : '#e1e5e9',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.1,
-              shadowRadius: 2,
-              elevation: 2,
-            }}
+            dayRecord={dayRecord}
             onPress={() => {
               // 詳細画面への遷移予定
               console.log('タップされた日付:', dayRecord.date);
             }}
-            onLongPress={() => {
-              // 長押しで運行なし切り替え
-              console.log('長押しされた日付:', dayRecord.date);
-              toggleNoOperation(dayRecord.date);
-            }}
-          >
-            {/* 日付表示 */}
-            <View style={{ flex: 1 }}>
-              <Text style={{
-                fontSize: 16,
-                fontWeight: 'bold',
-                color: dayRecord.isSunday ? '#ff4444' :
-                       dayRecord.isSaturday ? '#4444ff' : '#333',
-              }}>
-                {dayRecord.dayOfMonth}日
-              </Text>
-              <Text style={{
-                fontSize: 12,
-                color: '#666',
-                marginTop: 2,
-              }}>
-                {dayRecord.date}
-              </Text>
-            </View>
-
-            {/* ステータス表示 */}
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              marginRight: 8,
-            }}>
-              <StatusIcon dayRecord={dayRecord} />
-              <Text style={{
-                fontSize: 12,
-                color: '#666',
-              }}>
-                {dayRecord.isNoOperation ? '運行なし' :
-                 dayRecord.isComplete ? '完了' : 
-                 dayRecord.hasBeforeRecord || dayRecord.hasAfterRecord ? '一部' : '未記録'}
-              </Text>
-            </View>
-
-            {/* PDF出力ボタン */}
-            <TouchableOpacity
-              onPress={(e) => {
-                e.stopPropagation(); // 親のタップイベントを無効化
-                navigateToPDFExport(dayRecord);
-              }}
-              style={{
-                backgroundColor: colors.orange,
-                borderRadius: 6,
-                padding: 6,
-                marginRight: 8,
-              }}
-            >
-              <Feather name="file-text" size={16} color="#fff" />
-            </TouchableOpacity>
-
-            {/* 詳細矢印 */}
-            <Text style={{ fontSize: 16, color: '#999' }}>›</Text>
-          </TouchableOpacity>
+            onLongPress={() => toggleNoOperation(dayRecord.date)}
+            onPDFExport={() => navigateToPDFExport(dayRecord)}
+          />
         ))}
       </ScrollView>
     </View>
   );
 }
+
+// スタイル定義
+const styles = StyleSheet.create({
+  recordItemContainer: {
+    marginBottom: 8,
+  },
+  recordItemTouch: {
+    position: 'relative',
+  },
+  pdfButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: colors.orange,
+    borderRadius: 6,
+    padding: 6,
+    zIndex: 1,
+  },
+});
+
+// コンポーネント全体をメモ化してエクスポート
+export default React.memo(withPerformanceMonitoring(RecordListView, 'RecordListView'));

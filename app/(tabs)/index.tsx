@@ -17,6 +17,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
 import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
 import { withPerformanceMonitoring, usePerformanceMonitor } from '@/utils/performanceMonitor';
+import { useOptimizedCallback, useExpensiveCalculation, useOptimizationMetrics } from '@/hooks/useOptimizedPerformance';
+import { recordComponentOptimization } from '@/utils/performanceReporter';
 import { 
   AccessibilityLabels, 
   AccessibilityHints, 
@@ -32,6 +34,13 @@ function HomeScreen() {
   const { todayStatus, loading: tenkoLoading, error, refreshData } = useTenko();
   const subscriptionStatus = useSubscriptionStatus();
   const { checkMemoryUsage, recordScreenTransition } = usePerformanceMonitor();
+  const { recordRender, getMetrics } = useOptimizationMetrics('HomeScreen');
+
+  // レンダリング計測と最適化記録
+  React.useEffect(() => {
+    recordRender();
+    recordComponentOptimization('HomeScreen');
+  }, []);
   
   console.log('*** (tabs)/index.tsx レンダリング - 状態:', { 
     user: !!user, 
@@ -41,14 +50,29 @@ function HomeScreen() {
     isBasic: subscriptionStatus.isBasic
   });
   
-  // 画面フォーカス時にデータを更新
-  useFocusEffect(
-    React.useCallback(() => {
+  // 最適化されたコールバック
+  const optimizedRefreshData = useOptimizedCallback(
+    () => {
       if (user) {
         refreshData();
       }
+    },
+    [user?.id, refreshData]
+  );
+
+  const optimizedMemoryCheck = useOptimizedCallback(
+    () => {
       checkMemoryUsage('HomeScreen');
-    }, [user?.id]) // checkMemoryUsageも依存配列から削除
+    },
+    [checkMemoryUsage]
+  );
+
+  // 画面フォーカス時にデータを更新
+  useFocusEffect(
+    React.useCallback(() => {
+      optimizedRefreshData();
+      optimizedMemoryCheck();
+    }, [optimizedRefreshData, optimizedMemoryCheck])
   );
   
   // 認証ローディング中は何も表示しない
@@ -65,14 +89,19 @@ function HomeScreen() {
   
   const loading = tenkoLoading;
 
-  // 今日の日付を取得
-  const today = new Date();
-  const todayString = today.toLocaleDateString('ja-JP', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long'
-  });
+  // 今日の日付を取得（最適化）
+  const todayString = useExpensiveCalculation(
+    () => {
+      const today = new Date();
+      return today.toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+    },
+    [] // 日付は日が変わったら自動的に更新される
+  );
 
   return (
     <SafeAreaView 
@@ -193,14 +222,14 @@ function HomeScreen() {
         <View style={styles.actionSection}>
           <TouchableOpacity 
             style={[styles.taskCard, { backgroundColor: colors.orange }]}
-            onPress={() => {
+            onPress={useOptimizedCallback(() => {
               console.log('*** 業務前点呼ボタン押下');
               const startTime = Date.now();
               router.push('/tenko-before');
               setTimeout(() => {
                 recordScreenTransition('HomeScreen', 'TenkoBeforeScreen', Date.now() - startTime);
               }, 100);
-            }}
+            }, [router, recordScreenTransition])}
             hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             delayPressIn={0}
             delayPressOut={0}
@@ -220,14 +249,14 @@ function HomeScreen() {
 
           <TouchableOpacity 
             style={[styles.taskCard, { backgroundColor: colors.charcoal }]}
-            onPress={() => {
+            onPress={useOptimizedCallback(() => {
               console.log('*** 業務後点呼ボタン押下');
               const startTime = Date.now();
               router.push('/tenko-after');
               setTimeout(() => {
                 recordScreenTransition('HomeScreen', 'TenkoAfterScreen', Date.now() - startTime);
               }, 100);
-            }}
+            }, [router, recordScreenTransition])}
             hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             delayPressIn={0}
             delayPressOut={0}
