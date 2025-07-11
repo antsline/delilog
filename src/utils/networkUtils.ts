@@ -152,7 +152,7 @@ export class NetworkManager {
 
       const response = await fetch('https://www.google.com/generate_204', {
         method: 'HEAD',
-        signal: controller.signal,
+        signal: controller.signal as any,
         cache: 'no-cache',
       });
 
@@ -231,7 +231,7 @@ export const getNetworkManager = (): NetworkManager => {
 // React Hook用のヘルパー関数
 export const createNetworkStatusHook = () => {
   return (): NetworkStatus => {
-    const [status, setStatus] = React.useState<NetworkStatus>(
+    const [status, setStatus] = React.useState(
       getNetworkManager().getCurrentStatus()
     );
 

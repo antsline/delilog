@@ -19,7 +19,11 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "jp.delilog.app",
-      buildNumber: "1"
+      buildNumber: "1",
+      infoPlist: {
+        NSMicrophoneUsageDescription: "音声入力機能で特記事項を入力するためにマイクを使用します。",
+        NSSpeechRecognitionUsageDescription: "音声入力機能で音声をテキストに変換するために使用します。"
+      }
     },
     android: {
       adaptiveIcon: {
@@ -27,7 +31,10 @@ export default {
         backgroundColor: "#FFFCF2"
       },
       package: "jp.delilog.app",
-      versionCode: 1
+      versionCode: 1,
+      permissions: [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     web: {
       favicon: "./assets/favicon.png",

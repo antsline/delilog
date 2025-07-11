@@ -295,7 +295,7 @@ export const useOfflineStore = create<OfflineState & OfflineActions>()(
         set({
           localTenkoRecords: tenkoRecords,
           localVehicles: vehicles,
-          localUserProfile: userProfile,
+          localUserProfile: userProfile as LocalUserProfile | null,
         });
 
         console.log('📊 ローカルデータ読み込み完了:', {
@@ -710,7 +710,10 @@ export const useOfflineStore = create<OfflineState & OfflineActions>()(
           },
           vehicles: vehicleStats,
           sync_queue: queueStats,
-          storage_info: storageInfo,
+          storage_info: {
+            total_size_bytes: storageInfo.totalSize,
+            item_count: storageInfo.itemCount,
+          },
         };
 
         set({ dataStats: newStats });

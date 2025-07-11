@@ -48,6 +48,7 @@ export interface SyncQueueItem {
   retry_count: number;
   max_retries: number;
   last_error?: string;
+  failed_at?: string;
   priority: 'high' | 'medium' | 'low';
 }
 
@@ -130,7 +131,7 @@ export interface SyncStatus {
 export interface SyncError {
   id: string;
   timestamp: string;
-  error_type: 'network' | 'server' | 'data' | 'auth' | 'unknown';
+  error_type: 'network' | 'server' | 'data' | 'auth' | 'sync' | 'unknown';
   error_message: string;
   entity_type?: string;
   entity_id?: string;

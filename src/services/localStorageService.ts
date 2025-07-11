@@ -180,10 +180,29 @@ export class LocalStorageService {
     const defaultSettings: AppSettings = {
       offline_mode_enabled: true,
       auto_sync_enabled: true,
+      sync_on_wifi_only: false,
+      max_offline_storage_days: 30,
+      sync_interval_minutes: 5,
+      retry_failed_sync: true,
+      max_sync_retries: 3,
       user_preferences: {
         default_check_method: '対面',
         default_executor: '本人',
-        notification_enabled: true,
+        default_alcohol_level: '0.00',
+        default_health_status: 'good' as const,
+        default_daily_check: true,
+      },
+      notification_settings: {
+        enabled: true,
+        tenko_reminder_enabled: true,
+        sync_failure_alert: true,
+        offline_mode_alert: true,
+      },
+      data_management: {
+        auto_backup_enabled: true,
+        cleanup_old_data: true,
+        export_format: 'json',
+        backup_frequency_days: 7,
       },
     };
 

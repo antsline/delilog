@@ -42,6 +42,28 @@ export class TenkoService {
     return data;
   }
 
+  // IDで点呼記録を取得
+  static async getTenkoRecordById(id: string): Promise<TenkoRecord | null> {
+    const { data, error } = await supabase
+      .from('tenko_records')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // 404以外はエラー
+    return data || null;
+  }
+
+  // 点呼記録を削除
+  static async deleteTenkoRecord(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('tenko_records')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   // 指定期間の点呼記録を取得
   static async getRecordsByDateRange(
     userId: string, 

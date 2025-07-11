@@ -22,7 +22,7 @@ import { colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
 import { tenkoAfterSchema, type TenkoAfterFormData } from '@/types/tenkoValidation';
-import { VoiceInput } from '@/components/VoiceInput';
+import { VoiceInputButton } from '@/components/VoiceInputButton';
 import { TenkoService } from '@/services/tenkoService';
 import { useOfflineStore, useNetworkStatus, useIsOffline } from '@/store/offlineStore';
 
@@ -562,7 +562,16 @@ export default function TenkoAfterScreen() {
                     Keyboard.dismiss();
                   }}
                 />
-                <VoiceInput onTranscription={handleVoiceInput} />
+                <View style={styles.voiceInputContainer}>
+                  <VoiceInputButton
+                    onVoiceInput={(text) => {
+                      // 音声入力されたテキストを追加
+                      const currentValue = value || '';
+                      onChange(currentValue ? `${currentValue}\n${text}` : text);
+                    }}
+                    placeholder="音声で特記事項を入力"
+                  />
+                </View>
               </>
             )}
           />
@@ -838,6 +847,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.charcoal,
     minHeight: 100,
+  },
+  voiceInputContainer: {
+    marginTop: 12,
+    alignItems: 'center',
   },
   footer: {
     padding: 20,
