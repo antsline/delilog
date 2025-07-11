@@ -21,9 +21,9 @@ Android アプリ:
 
 ### ステップ3: 商品作成
 ```
-Product ID: delilog_monthly_980
+Product ID: delilog_monthly_900
 Type: Subscription
-Price: ¥980/月
+Price: ¥900/月
 Trial: 7日間無料
 ```
 
@@ -31,7 +31,7 @@ Trial: 7日間無料
 ```
 Identifier: delilog_premium
 Name: プレミアム機能
-Products: delilog_monthly_980を関連付け
+Products: delilog_monthly_900を関連付け
 ```
 
 ### ステップ5: APIキー取得
@@ -55,14 +55,14 @@ EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_your_actual_android_api_key
 
 ### App Store Connect
 1. 自動更新サブスクリプション作成
-2. Product ID: `delilog_monthly_980`
-3. 価格: ¥980
+2. Product ID: `delilog_monthly_900`
+3. 価格: ¥900
 4. 無料トライアル: 7日間
 
 ### Google Play Console  
 1. 定期購入商品作成
-2. Product ID: `delilog_monthly_980`
-3. 価格: ¥980
+2. Product ID: `delilog_monthly_900`
+3. 価格: ¥900
 4. 無料トライアル: 7日間
 
 ## ✅ 設定確認
@@ -111,7 +111,7 @@ npm start
 
 - [ ] RevenueCatアカウント作成
 - [ ] iOS/Androidアプリ登録  
-- [ ] 商品作成 (delilog_monthly_980)
+- [ ] 商品作成 (delilog_monthly_900)
 - [ ] Entitlement作成 (delilog_premium)
 - [ ] APIキー取得
 - [ ] .envファイル更新

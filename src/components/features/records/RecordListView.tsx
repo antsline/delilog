@@ -33,6 +33,7 @@ interface DayRecord {
   isSaturday: boolean;
   isSunday: boolean;
   isWeekend: boolean;
+  isHoliday: boolean;
 }
 
 function RecordListView({
@@ -103,11 +104,24 @@ function RecordListView({
 
   // 各日の記録状態を計算
   const dayRecordsList: DayRecord[] = React.useMemo(() => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
     return dayList.map(day => {
       const dayRecords = recordsMap.get(day.dateStr) || [];
       const beforeRecord = dayRecords.find(r => r.type === 'before');
       const afterRecord = dayRecords.find(r => r.type === 'after');
-      const isNoOperation = noOperationMap.has(day.dateStr);
+      const hasAnyRecord = dayRecords.length > 0;
+      const isExplicitNoOperation = noOperationMap.has(day.dateStr);
+      
+      // 日付を比較用に変換
+      const dayDate = new Date(day.dateStr);
+      const isPastDate = dayDate < yesterday;
+      
+      // 昨日以前で記録がない日は運行なしと判定
+      // 今日を含む未来の日付は記録がなくても運行なしにしない
+      const isNoOperation = isPastDate ? (!hasAnyRecord || isExplicitNoOperation) : isExplicitNoOperation;
       
       return {
         date: day.dateStr,
@@ -120,6 +134,7 @@ function RecordListView({
         isSaturday: day.isSaturday,
         isSunday: day.isSunday,
         isWeekend: day.isWeekend,
+        isHoliday: day.isHoliday,
       };
     });
     // 日付の昇順でソート（1日から順番に）
@@ -188,35 +203,6 @@ function RecordListView({
     });
   };
 
-  // 運行なし状態の切り替え（最適化）
-  const toggleNoOperation = useOptimizedCallback(async (date: string) => {
-    if (!user) return;
-    
-    try {
-      const isCurrentlyNoOperation = noOperationMap.has(date);
-      const message = isCurrentlyNoOperation 
-        ? `${date}を運行ありに変更しますか？`
-        : `${date}を運行なしに設定しますか？`;
-        
-      Alert.alert(
-        '運行状態の変更',
-        message,
-        [
-          { text: 'キャンセル', style: 'cancel' },
-          {
-            text: 'OK',
-            onPress: async () => {
-              await NoOperationService.toggleNoOperationDay(user.id, date);
-              onDataChanged();
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('運行なし状態の切り替えに失敗:', error);
-      Alert.alert('エラー', '設定の変更に失敗しました');
-    }
-  }, [user, noOperationMap, onDataChanged]);
 
   // 最適化された日記録カードラッパー
   const OptimizedDayRecordCard = React.memo(({ 
@@ -248,7 +234,7 @@ function RecordListView({
             isSaturday={dayRecord.isSaturday}
             isSunday={dayRecord.isSunday}
             isWeekend={dayRecord.isWeekend}
-            onNoOperationToggle={toggleNoOperation}
+            isHoliday={dayRecord.isHoliday}
           />
           
           {/* PDF出力ボタン */}
@@ -336,7 +322,10 @@ function RecordListView({
               // 詳細画面への遷移予定
               console.log('タップされた日付:', dayRecord.date);
             }}
-            onLongPress={() => toggleNoOperation(dayRecord.date)}
+            onLongPress={() => {
+              // 詳細画面への遷移予定
+              console.log('長押しされた日付:', dayRecord.date);
+            }}
             onPDFExport={() => navigateToPDFExport(dayRecord)}
           />
         ))}
@@ -355,8 +344,8 @@ const styles = StyleSheet.create({
   },
   pdfButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 12,
+    right: 12,
     backgroundColor: colors.orange,
     borderRadius: 6,
     padding: 6,

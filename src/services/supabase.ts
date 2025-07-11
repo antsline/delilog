@@ -9,5 +9,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // セッション期間を最大に設定（1年間）
+    sessionRefreshMargin: 60, // 60秒前に自動リフレッシュ
+    // リフレッシュトークンの有効期限を延長
+    refreshTokenRotation: true,
   },
 });

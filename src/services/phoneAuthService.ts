@@ -5,6 +5,7 @@
 
 import { supabase } from '@/services/supabase';
 import { Logger } from '@/utils/logger';
+import { authSessionService } from './authSessionService';
 
 export interface PhoneAuthResponse {
   success: boolean;
@@ -24,6 +25,15 @@ class PhoneAuthService {
    */
   async sendVerificationCode(phoneNumber: string): Promise<PhoneAuthResponse> {
     try {
+      // SMS認証の使用可否チェック
+      const smsCheck = await authSessionService.canUseSMSAuth();
+      if (!smsCheck.allowed) {
+        return {
+          success: false,
+          message: smsCheck.message
+        };
+      }
+
       // 日本の電話番号フォーマットに変換
       const formattedPhone = this.formatPhoneNumber(phoneNumber);
       
@@ -44,10 +54,13 @@ class PhoneAuthService {
         };
       }
 
+      // SMS認証の実行を記録
+      await authSessionService.recordSMSAuth();
+
       Logger.success('SMS認証コード送信成功', formattedPhone);
       return {
         success: true,
-        message: '認証コードを送信しました',
+        message: `認証コードを送信しました（今日の残り回数: ${smsCheck.remainingCount - 1}回）`,
         session: data.session
       };
 

@@ -117,6 +117,7 @@ export function generateDayList(year: number, month: number) {
     const dayOfWeek = date.getDay();
     const isSat = dayOfWeek === 6;
     const isSun = dayOfWeek === 0;
+    const isHoliday = isJapaneseHoliday(date);
     
     dayList.push({
       dayOfMonth: day,
@@ -125,7 +126,8 @@ export function generateDayList(year: number, month: number) {
       date,
       isSaturday: isSat,
       isSunday: isSun,
-      isWeekend: isSat || isSun
+      isWeekend: isSat || isSun,
+      isHoliday
     });
   }
   
@@ -165,13 +167,14 @@ export function timeStringToDate(timeString: string, date: Date = new Date()): D
 }
 
 /**
- * 日本の祝日判定（簡易版）
+ * 日本の祝日判定（包括版）
  */
 export function isJapaneseHoliday(date: Date): boolean {
+  const year = date.getFullYear();
   const month = date.getMonth() + 1;
   const day = date.getDate();
   
-  // 固定祝日の例
+  // 固定祝日
   const fixedHolidays = [
     '1-1',   // 元日
     '2-11',  // 建国記念の日
@@ -186,7 +189,74 @@ export function isJapaneseHoliday(date: Date): boolean {
   ];
   
   const dateString = `${month}-${day}`;
-  return fixedHolidays.includes(dateString);
+  if (fixedHolidays.includes(dateString)) {
+    return true;
+  }
+  
+  // 移動祝日
+  // 成人の日（1月第2月曜日）
+  if (month === 1) {
+    const secondMonday = getMonthWeekday(year, 1, 1, 2); // 第2月曜日
+    if (day === secondMonday) return true;
+  }
+  
+  // 海の日（7月第3月曜日）
+  if (month === 7) {
+    const thirdMonday = getMonthWeekday(year, 7, 1, 3); // 第3月曜日
+    if (day === thirdMonday) return true;
+  }
+  
+  // 敬老の日（9月第3月曜日）
+  if (month === 9) {
+    const thirdMonday = getMonthWeekday(year, 9, 1, 3); // 第3月曜日
+    if (day === thirdMonday) return true;
+  }
+  
+  // スポーツの日（10月第2月曜日）
+  if (month === 10) {
+    const secondMonday = getMonthWeekday(year, 10, 1, 2); // 第2月曜日
+    if (day === secondMonday) return true;
+  }
+  
+  // 春分の日・秋分の日（近似値）
+  if (month === 3) {
+    const shunbun = Math.floor(20.8431 + 0.242194 * (year - 1851) - Math.floor((year - 1851) / 4));
+    if (day === shunbun) return true;
+  }
+  
+  if (month === 9) {
+    const shubun = Math.floor(23.2488 + 0.242194 * (year - 1851) - Math.floor((year - 1851) / 4));
+    if (day === shubun) return true;
+  }
+  
+  return false;
+}
+
+/**
+ * 指定月の第n週の指定曜日を取得
+ * @param year 年
+ * @param month 月 (1-12)
+ * @param weekday 曜日 (0:日曜日, 1:月曜日, ...)
+ * @param week 第n週 (1-5)
+ * @returns 日付
+ */
+function getMonthWeekday(year: number, month: number, weekday: number, week: number): number {
+  const firstDay = new Date(year, month - 1, 1);
+  const firstWeekday = firstDay.getDay();
+  
+  // 第1週の指定曜日を計算
+  let targetDate = 1 + (weekday - firstWeekday + 7) % 7;
+  
+  // 第n週の指定曜日を計算
+  targetDate += (week - 1) * 7;
+  
+  // 月の範囲内チェック
+  const lastDay = new Date(year, month, 0).getDate();
+  if (targetDate > lastDay) {
+    return -1; // 存在しない日付
+  }
+  
+  return targetDate;
 }
 
 /**

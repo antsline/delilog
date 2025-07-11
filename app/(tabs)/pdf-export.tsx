@@ -333,21 +333,25 @@ export default function PDFExportScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>出力期間</Text>
           <View style={styles.dateRangeContainer}>
-            <Text style={styles.dateRangeText}>
-              {startDate.toLocaleDateString('ja-JP', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                weekday: 'short'
-              })}
-              　〜　
-              {endDate.toLocaleDateString('ja-JP', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                weekday: 'short'
-              })}
-            </Text>
+            <View style={styles.dateRangeColumn}>
+              <Text style={styles.dateRangeText}>
+                {startDate.toLocaleDateString('ja-JP', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric',
+                  weekday: 'short'
+                })}
+              </Text>
+              <Text style={styles.dateRangeSeparator}>〜</Text>
+              <Text style={styles.dateRangeText}>
+                {endDate.toLocaleDateString('ja-JP', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric',
+                  weekday: 'short'
+                })}
+              </Text>
+            </View>
             <Text style={styles.dateRangeNote}>
               選択した日（{selectedDate.getMonth() + 1}月{selectedDate.getDate()}日）を含む週（日〜土）
             </Text>
@@ -514,12 +518,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.beige,
   },
+  dateRangeColumn: {
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   dateRangeText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.charcoal,
     textAlign: 'center',
-    marginBottom: 6,
+  },
+  dateRangeSeparator: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.charcoal,
+    marginVertical: 4,
   },
   dateRangeNote: {
     fontSize: 12,

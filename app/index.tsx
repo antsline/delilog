@@ -18,11 +18,16 @@ export default function Index() {
 
   // 認証状態の変更を監視してリダイレクトを確実に実行
   React.useEffect(() => {
-    if (user && hasProfile) {
-      console.log('*** Index.tsx useEffect: 認証済み&プロフィールあり - 強制リダイレクト', user.id);
-      router.replace('/(tabs)');
+    if (!loading) {
+      if (user && hasProfile) {
+        console.log('*** Index.tsx useEffect: 認証済み&プロフィールあり - 強制リダイレクト', user.id);
+        router.replace('/(tabs)');
+      } else if (!user) {
+        console.log('*** Index.tsx useEffect: 未認証 - ログイン画面へ強制リダイレクト');
+        router.replace('/(auth)/login');
+      }
     }
-  }, [user, hasProfile]);
+  }, [user, hasProfile, loading]);
 
   // デバッグ: タッチテスト画面への直接ナビゲーション
   if (__DEV__ && false) { // Change to true to enable touch test

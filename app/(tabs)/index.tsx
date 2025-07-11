@@ -8,17 +8,22 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Pressable,
-  Alert
+  Alert,
+  Animated
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
 import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
-import { withPerformanceMonitoring, usePerformanceMonitor } from '@/utils/performanceMonitor';
-import { useOptimizedCallback, useExpensiveCalculation, useOptimizationMetrics } from '@/hooks/useOptimizedPerformance';
-import { recordComponentOptimization } from '@/utils/performanceReporter';
+// パフォーマンス関連を一時的に無効化
+// import { withPerformanceMonitoring, usePerformanceMonitor } from '@/utils/performanceMonitor';
+// import { useOptimizedCallback, useExpensiveCalculation, useOptimizationMetrics } from '@/hooks/useOptimizedPerformance';
+// import { recordComponentOptimization } from '@/utils/performanceReporter';
+import { useTapFeedback } from '@/hooks/useAnimations';
+import { LoadingState } from '@/components/ui/LoadingStates';
 import { 
   AccessibilityLabels, 
   AccessibilityHints, 
@@ -33,75 +38,103 @@ function HomeScreen() {
   const { user, profile, loading: authLoading } = useAuth();
   const { todayStatus, loading: tenkoLoading, error, refreshData } = useTenko();
   const subscriptionStatus = useSubscriptionStatus();
-  const { checkMemoryUsage, recordScreenTransition } = usePerformanceMonitor();
-  const { recordRender, getMetrics } = useOptimizationMetrics('HomeScreen');
+  // パフォーマンス計測を一時的に無効化
+  // const { checkMemoryUsage, recordScreenTransition } = usePerformanceMonitor();
+  // const { recordRender, getMetrics } = useOptimizationMetrics('HomeScreen');
 
-  // レンダリング計測と最適化記録
-  React.useEffect(() => {
-    recordRender();
-    recordComponentOptimization('HomeScreen');
-  }, []);
-  
-  console.log('*** (tabs)/index.tsx レンダリング - 状態:', { 
-    user: !!user, 
-    userId: user?.id,
-    profile: !!profile, 
-    authLoading,
-    isBasic: subscriptionStatus.isBasic
-  });
-  
-  // 最適化されたコールバック
-  const optimizedRefreshData = useOptimizedCallback(
-    () => {
-      if (user) {
-        refreshData();
-      }
-    },
-    [user?.id, refreshData]
-  );
+  // アニメーション設定（簡素化）
+  const { scale: beforeButtonScale, onPressIn: beforePressIn, onPressOut: beforePressOut } = useTapFeedback();
+  const { scale: afterButtonScale, onPressIn: afterPressIn, onPressOut: afterPressOut } = useTapFeedback();
 
-  const optimizedMemoryCheck = useOptimizedCallback(
-    () => {
-      checkMemoryUsage('HomeScreen');
-    },
-    [checkMemoryUsage]
-  );
+  // 初回マウント時のみ実行（一時的に無効化）
+  // React.useEffect(() => {
+  //   recordComponentOptimization('HomeScreen');
+  //   console.log('🎯 HomeScreen マウント完了');
+  // }, []);
 
-  // 画面フォーカス時にデータを更新
-  useFocusEffect(
-    React.useCallback(() => {
-      optimizedRefreshData();
-      optimizedMemoryCheck();
-    }, [optimizedRefreshData, optimizedMemoryCheck])
-  );
+  // レンダリング計測を一時的に無効化
+  // const renderRecorded = React.useRef(false);
+  // React.useEffect(() => {
+  //   if (!renderRecorded.current) {
+  //     renderRecorded.current = true;
+  //     recordRender();
+  //   }
+  // });
   
-  // 認証ローディング中は何も表示しない
+  // デバッグログを一時的に無効化
+  // console.log('*** (tabs)/index.tsx レンダリング - 状態:', { 
+  //   user: !!user, 
+  //   userId: user?.id,
+  //   profile: !!profile, 
+  //   authLoading,
+  //   isBasic: subscriptionStatus.isBasic
+  // });
+  
+  // 最適化されたコールバック（一時的に無効化）
+  // const optimizedRefreshData = useOptimizedCallback(
+  //   () => {
+  //     if (user) {
+  //       refreshData();
+  //     }
+  //   },
+  //   [user?.id, refreshData]
+  // );
+
+  // const optimizedMemoryCheck = useOptimizedCallback(
+  //   () => {
+  //     checkMemoryUsage('HomeScreen');
+  //   },
+  //   [checkMemoryUsage]
+  // );
+
+  // 画面フォーカス時にデータを更新（一時的に無効化）
+  // useFocusEffect(
+  //   React.useCallback(() => {
+  //     optimizedRefreshData();
+  //     optimizedMemoryCheck();
+  //   }, [optimizedRefreshData, optimizedMemoryCheck])
+  // );
+  
+  // 認証ローディング中は改善されたローディング表示
   if (authLoading && !user) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={colors.orange} size="large" />
-          <Text style={styles.loadingText}>アプリを起動中...</Text>
-        </View>
+        <LoadingState
+          type="overlay"
+          message="アプリを起動中..."
+          size="large"
+          color={colors.orange}
+          animated={true}
+        />
       </SafeAreaView>
     );
   }
   
   const loading = tenkoLoading;
 
-  // 今日の日付を取得（最適化）
-  const todayString = useExpensiveCalculation(
-    () => {
-      const today = new Date();
-      return today.toLocaleDateString('ja-JP', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long'
-      });
-    },
-    [] // 日付は日が変わったら自動的に更新される
-  );
+  // 今日の日付を取得
+  const today = new Date();
+  const todayString = today.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  });
+
+  // 時間帯に応じた挨拶を取得
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    
+    if (hour >= 5 && hour < 10) {
+      return 'おはようございます';
+    } else if (hour >= 10 && hour < 17) {
+      return 'おつかれさまです';
+    } else if (hour >= 17 && hour < 21) {
+      return 'おつかれさまです';
+    } else {
+      return 'おつかれさまです';
+    }
+  };
 
   return (
     <SafeAreaView 
@@ -120,12 +153,12 @@ function HomeScreen() {
         <View 
           style={styles.header}
           {...createAccessibleProps(
-            `おはようございます、${profile?.driver_name || 'ドライバー'}さん`,
+            `${getGreeting()}、${profile?.driver_name || 'ドライバー'}さん`,
             '今日の挨拶です',
             AccessibilityRoles.HEADER
           )}
         >
-          <Text style={styles.greeting}>おはようございます</Text>
+          <Text style={styles.greeting}>{getGreeting()}</Text>
           <Text style={styles.userName}>{profile?.driver_name || 'ドライバー'}さん</Text>
         </View>
 
@@ -158,7 +191,7 @@ function HomeScreen() {
         {subscriptionStatus.trialDaysRemaining !== null && subscriptionStatus.trialDaysRemaining > 0 && (
           <View style={styles.trialBanner}>
             <Text style={styles.trialText}>
-              🎉 無料トライアル残り{subscriptionStatus.trialDaysRemaining}日
+              無料トライアル残り{subscriptionStatus.trialDaysRemaining}日
             </Text>
           </View>
         )}
@@ -168,10 +201,13 @@ function HomeScreen() {
           <Text style={styles.sectionTitle}>今日の状況</Text>
           
           {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={colors.orange} size="large" />
-              <Text style={styles.loadingText}>データを読み込み中...</Text>
-            </View>
+            <LoadingState
+              type="inline"
+              message="データを読み込み中..."
+              size="medium"
+              color={colors.orange}
+              animated={true}
+            />
           ) : error ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
@@ -220,81 +256,66 @@ function HomeScreen() {
 
         {/* 点呼ボタン */}
         <View style={styles.actionSection}>
-          <TouchableOpacity 
-            style={[styles.taskCard, { backgroundColor: colors.orange }]}
-            onPress={useOptimizedCallback(() => {
-              console.log('*** 業務前点呼ボタン押下');
-              const startTime = Date.now();
-              router.push('/tenko-before');
-              setTimeout(() => {
-                recordScreenTransition('HomeScreen', 'TenkoBeforeScreen', Date.now() - startTime);
-              }, 100);
-            }, [router, recordScreenTransition])}
-            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-            delayPressIn={0}
-            delayPressOut={0}
-            {...createAccessibleProps(
-              AccessibilityLabels.BEFORE_TENKO_BUTTON,
-              AccessibilityHints.TENKO_BUTTON,
-              AccessibilityRoles.BUTTON
-            )}
-          >
-            <Text style={[styles.taskTitle, { color: colors.cream }]}>
-              業務前点呼を記録
-            </Text>
-            <Text style={[styles.taskSubtitle, { color: colors.cream, opacity: 0.8 }]}>
-              運行開始前の安全確認
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.taskCard, { backgroundColor: colors.charcoal }]}
-            onPress={useOptimizedCallback(() => {
-              console.log('*** 業務後点呼ボタン押下');
-              const startTime = Date.now();
-              router.push('/tenko-after');
-              setTimeout(() => {
-                recordScreenTransition('HomeScreen', 'TenkoAfterScreen', Date.now() - startTime);
-              }, 100);
-            }, [router, recordScreenTransition])}
-            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-            delayPressIn={0}
-            delayPressOut={0}
-            {...createAccessibleProps(
-              AccessibilityLabels.AFTER_TENKO_BUTTON,
-              AccessibilityHints.TENKO_BUTTON,
-              AccessibilityRoles.BUTTON
-            )}
-          >
-            <Text style={[styles.taskTitle, { color: colors.cream }]}>
-              業務後点呼を記録
-            </Text>
-            <Text style={[styles.taskSubtitle, { color: colors.cream, opacity: 0.8 }]}>
-              運行終了後の確認
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* クイックアクション */}
-        <View style={styles.quickActionSection}>
-          <Text style={styles.sectionTitle}>クイックアクション</Text>
+          <Text style={styles.sectionTitle}>点呼記録</Text>
           
-          <View style={styles.quickActionGrid}>
-            <TouchableOpacity style={styles.quickActionItem}>
-              <Text style={styles.quickActionText}>記録一覧</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.quickActionItem}>
-              <Text style={styles.quickActionText}>PDF出力</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.quickActionItem}>
-              <Text style={styles.quickActionText}>車両設定</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.quickActionItem}>
-              <Text style={styles.quickActionText}>プロフィール</Text>
-            </TouchableOpacity>
+          <View style={styles.actionButtonRow}>
+            <Animated.View style={[styles.actionButtonWrapper, { transform: [{ scale: beforeButtonScale }] }]}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => {
+                  router.push('/tenko-before');
+                }}
+                onPressIn={beforePressIn}
+                onPressOut={beforePressOut}
+                hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                delayPressIn={0}
+                delayPressOut={0}
+                {...createAccessibleProps(
+                  AccessibilityLabels.BEFORE_TENKO_BUTTON,
+                  AccessibilityHints.TENKO_BUTTON,
+                  AccessibilityRoles.BUTTON
+                )}
+              >
+                <View style={styles.actionButtonIcon}>
+                  <Feather name="truck" size={20} color={colors.charcoal} />
+                </View>
+                <Text style={styles.actionButtonTitle}>
+                  業務前点呼
+                </Text>
+                <Text style={styles.actionButtonSubtitle}>
+                  運行開始前の確認
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <Animated.View style={[styles.actionButtonWrapper, { transform: [{ scale: afterButtonScale }] }]}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => {
+                  router.push('/tenko-after');
+                }}
+                onPressIn={afterPressIn}
+                onPressOut={afterPressOut}
+                hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                delayPressIn={0}
+                delayPressOut={0}
+                {...createAccessibleProps(
+                  AccessibilityLabels.AFTER_TENKO_BUTTON,
+                  AccessibilityHints.TENKO_BUTTON,
+                  AccessibilityRoles.BUTTON
+                )}
+              >
+                <View style={styles.actionButtonIcon}>
+                  <Feather name="check-circle" size={20} color={colors.charcoal} />
+                </View>
+                <Text style={styles.actionButtonTitle}>
+                  業務後点呼
+                </Text>
+                <Text style={styles.actionButtonSubtitle}>
+                  運行終了後の確認
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </View>
       </ScrollView>
@@ -433,76 +454,47 @@ const styles = StyleSheet.create({
     color: colors.cream,
   },
   actionSection: {
-    gap: 16,
     marginBottom: 32,
-    paddingHorizontal: 20,
   },
-  actionButton: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1.5,
-  },
-  beforeButton: {
-    backgroundColor: colors.orange,
-    borderColor: colors.orange,
-  },
-  afterButton: {
-    backgroundColor: colors.charcoal,
-    borderColor: colors.charcoal,
-  },
-  actionButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.cream,
-    marginBottom: 4,
-  },
-  actionButtonSubText: {
-    fontSize: 14,
-    color: colors.cream,
-    opacity: 0.8,
-  },
-  quickActionSection: {
-    marginBottom: 40,
-  },
-  quickActionGrid: {
+  actionButtonRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 12,
   },
-  quickActionItem: {
+  actionButtonWrapper: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.cream,
-    borderWidth: 1.5,
-    borderColor: colors.beige,
-    borderRadius: 12,
+  },
+  actionButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 20,
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 80,
+    borderWidth: 2,
+    borderColor: colors.charcoal,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  quickActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.charcoal,
-    textAlign: 'center',
-  },
-  // register.tsx から動作するスタイルをコピー
-  taskCard: {
-    borderRadius: 16,
-    padding: 24,
+  actionButtonIcon: {
+    width: 40,
+    height: 40,
+    backgroundColor: colors.cream,
+    borderRadius: 20,
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    marginBottom: 12,
   },
-  taskTitle: {
-    fontSize: 18,
+  actionButtonTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
+    color: colors.charcoal,
     marginBottom: 4,
     textAlign: 'center',
   },
-  taskSubtitle: {
-    fontSize: 14,
+  actionButtonSubtitle: {
+    fontSize: 12,
+    color: colors.darkGray,
     textAlign: 'center',
   },
   syncIndicator: {
@@ -524,5 +516,5 @@ const styles = StyleSheet.create({
   },
 });
 
-// パフォーマンス監視付きでエクスポート
-export default React.memo(withPerformanceMonitoring(HomeScreen, 'HomeScreen'));
+// 一時的にシンプルなエクスポート
+export default HomeScreen;

@@ -12,6 +12,11 @@ export const colors = {
   info: '#3B82F6',
   lightGray: '#F3F4F6',
   lightOrange: '#FED7AA',
+  saturday: '#5B21B6', // 土曜日用の青紫色
+  white: '#FFFFFF',
+  lightBlue: '#E0F2FE',
+  green: '#10B981',
+  red: '#EF4444',
   
   // Text colors
   text: {

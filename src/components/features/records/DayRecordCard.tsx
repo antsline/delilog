@@ -19,7 +19,7 @@ interface DayRecordCardProps {
   isSaturday: boolean;
   isSunday: boolean;
   isWeekend: boolean;
-  onNoOperationToggle: (date: string) => void;
+  isHoliday: boolean;
 }
 
 const DayRecordCard = React.memo<DayRecordCardProps>(({
@@ -33,7 +33,7 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
   isSaturday,
   isSunday,
   isWeekend,
-  onNoOperationToggle,
+  isHoliday,
 }) => {
   // 記録状態を決定
   const getRecordStatus = React.useMemo(() => {
@@ -83,60 +83,83 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
   // カードスタイルを決定
   const cardStyle = React.useMemo(() => [
     styles.dayCard,
-    isWeekend && styles.weekendCard,
     isToday && styles.todayCard,
     { backgroundColor: getRecordStatus.bgColor },
-  ], [isWeekend, isToday, getRecordStatus.bgColor]);
+  ], [isToday, getRecordStatus.bgColor]);
 
-  const handleToggleNoOperation = React.useCallback(() => {
-    onNoOperationToggle(date);
-  }, [date, onNoOperationToggle]);
+
+  // 曜日名を取得
+  const dayOfWeek = React.useMemo(() => {
+    const dateObj = new Date(date);
+    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+    return dayNames[dateObj.getDay()];
+  }, [date]);
+
+  // 曜日の色を決定
+  const dayOfWeekColor = React.useMemo(() => {
+    if (isSunday || isHoliday) return colors.error;
+    if (isSaturday) return colors.saturday;
+    return colors.charcoal;
+  }, [isSunday, isSaturday, isHoliday]);
 
   return (
     <View style={cardStyle}>
-      {/* 日付表示 */}
-      <Text style={dayStyle}>{dayOfMonth}</Text>
-      
-      {/* 記録状態アイコン */}
-      <View style={styles.statusContainer}>
-        <Feather 
-          name={getRecordStatus.icon} 
-          size={16} 
-          color={getRecordStatus.color} 
-        />
-        <Text style={[styles.statusText, { color: getRecordStatus.color }]}>
-          {getRecordStatus.text}
-        </Text>
-      </View>
+      <View style={styles.cardContent}>
+        {/* 左側: 日付と曜日 */}
+        <View style={styles.dateSection}>
+          <Text style={[styles.dayNumber, { color: dayOfWeekColor }]}>
+            {dayOfMonth}日
+          </Text>
+          <Text style={[styles.dayOfWeek, { color: dayOfWeekColor }]}>
+            ({dayOfWeek})
+          </Text>
+        </View>
 
-      {/* 詳細情報 */}
-      {!isNoOperation && (hasBeforeRecord || hasAfterRecord) && (
-        <View style={styles.detailContainer}>
-          {hasBeforeRecord && (
-            <View style={[styles.recordBadge, styles.beforeBadge]}>
-              <Text style={styles.badgeText}>前</Text>
+        {/* 中央: 記録状態 */}
+        <View style={styles.statusSection}>
+          {isNoOperation ? (
+            <View style={styles.noOperationStatus}>
+              <Feather name="minus-circle" size={20} color={colors.darkGray} />
+              <Text style={styles.noOperationText}>運行なし</Text>
             </View>
-          )}
-          {hasAfterRecord && (
-            <View style={[styles.recordBadge, styles.afterBadge]}>
-              <Text style={styles.badgeText}>後</Text>
+          ) : (
+            <View style={styles.recordStatusContainer}>
+              <View style={styles.recordRow}>
+                <View style={styles.recordItem}>
+                  <Feather 
+                    name={hasBeforeRecord ? 'check-circle' : 'circle'} 
+                    size={16} 
+                    color={hasBeforeRecord ? colors.success : colors.darkGray} 
+                  />
+                  <Text style={[styles.recordLabel, { color: hasBeforeRecord ? colors.success : colors.darkGray }]}>
+                    業務前
+                  </Text>
+                </View>
+                <View style={styles.recordItem}>
+                  <Feather 
+                    name={hasAfterRecord ? 'check-circle' : 'circle'} 
+                    size={16} 
+                    color={hasAfterRecord ? colors.success : colors.darkGray} 
+                  />
+                  <Text style={[styles.recordLabel, { color: hasAfterRecord ? colors.success : colors.darkGray }]}>
+                    業務後
+                  </Text>
+                </View>
+              </View>
             </View>
           )}
         </View>
-      )}
 
-      {/* 運行なし切り替えボタン */}
-      <TouchableOpacity
-        style={styles.toggleButton}
-        onPress={handleToggleNoOperation}
-        hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-      >
-        <Feather 
-          name={isNoOperation ? 'x' : 'minus'} 
-          size={12} 
-          color={colors.darkGray} 
-        />
-      </TouchableOpacity>
+        {/* 右側: 完了状態アイコン */}
+        <View style={styles.completionSection}>
+          <Feather 
+            name={getRecordStatus.icon} 
+            size={24} 
+            color={getRecordStatus.color} 
+          />
+        </View>
+      </View>
+
     </View>
   );
 });
@@ -145,18 +168,15 @@ DayRecordCard.displayName = 'DayRecordCard';
 
 const styles = StyleSheet.create({
   dayCard: {
-    minHeight: 80,
-    padding: 8,
-    margin: 2,
-    borderRadius: 8,
+    minHeight: 72,
+    padding: 12,
+    marginVertical: 4,
+    marginHorizontal: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.beige,
     position: 'relative',
-    justifyContent: 'space-between',
-  },
-  weekendCard: {
-    borderColor: colors.orange,
-    borderWidth: 1.5,
+    backgroundColor: colors.cream,
   },
   todayCard: {
     borderColor: colors.charcoal,
@@ -167,69 +187,62 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  dayNumber: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.charcoal,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  todayNumber: {
-    color: colors.charcoal,
-    fontSize: 16,
-  },
-  sundayNumber: {
-    color: colors.error,
-  },
-  saturdayNumber: {
-    color: colors.orange,
-  },
-  statusContainer: {
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  detailContainer: {
+  cardContent: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 2,
-    marginTop: 4,
-  },
-  recordBadge: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-    minWidth: 16,
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  beforeBadge: {
-    backgroundColor: colors.orange,
+  dateSection: {
+    flex: 1,
+    alignItems: 'flex-start',
   },
-  afterBadge: {
-    backgroundColor: colors.charcoal,
-  },
-  badgeText: {
-    fontSize: 8,
+  dayNumber: {
+    fontSize: 18,
     fontWeight: 'bold',
-    color: colors.cream,
+    color: colors.charcoal,
+    lineHeight: 22,
   },
-  toggleButton: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.cream,
-    justifyContent: 'center',
+  dayOfWeek: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.charcoal,
+    marginTop: 2,
+  },
+  statusSection: {
+    flex: 2,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.beige,
+    justifyContent: 'center',
+  },
+  recordStatusContainer: {
+    alignItems: 'center',
+  },
+  recordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  recordItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  recordLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  noOperationStatus: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  noOperationText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.darkGray,
+  },
+  completionSection: {
+    flex: 1,
+    alignItems: 'flex-end',
+    marginRight: 40, // PDFボタンのスペースを確保
   },
 });
 

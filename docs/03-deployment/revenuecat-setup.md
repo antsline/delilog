@@ -42,14 +42,14 @@ delilogアプリのサブスクリプション機能を有効にするために�
 ### 3.1 商品作成
 1. 左サイドバーの「Products」をクリック
 2. 「Create Product」または「+ New Product」をクリック
-3. Product ID: `delilog_monthly_980`
+3. Product ID: `delilog_monthly_900`
 4. Type: Subscription
 5. 名前: `デリログ プレミアム`
 6. 説明: `全機能が使える月額プラン`
 
 ### 3.2 価格設定
 ```
-日本: ¥980/月
+日本: ¥900/月
 米国: $6.99/月
 その他地域: 適切なローカライズ価格
 ```
@@ -65,7 +65,7 @@ delilogアプリのサブスクリプション機能を有効にするために�
 
 ### 4.2 商品の関連付け
 1. 作成したEntitlementを選択
-2. 「Attach Products」で`delilog_monthly_980`を追加
+2. 「Attach Products」で`delilog_monthly_900`を追加
 
 ## 5. API キー取得
 
@@ -91,7 +91,7 @@ class SubscriptionService {
   private readonly API_KEY_IOS = 'appl_YOUR_ACTUAL_IOS_API_KEY';
   private readonly API_KEY_ANDROID = 'goog_YOUR_ACTUAL_ANDROID_API_KEY';
   private readonly ENTITLEMENT_ID = 'delilog_premium';
-  private readonly PRODUCT_ID = 'delilog_monthly_980';
+  private readonly PRODUCT_ID = 'delilog_monthly_900';
   // ...
 }
 ```
@@ -105,9 +105,9 @@ class SubscriptionService {
 
 ### 6.2 自動更新サブスクリプション作成
 ```
-商品ID: delilog_monthly_980
+商品ID: delilog_monthly_900
 参照名: デリログ プレミアム
-価格: ¥980
+価格: ¥900
 サブスクリプション期間: 1ヶ月
 無料トライアル: 7日間
 ```
@@ -127,10 +127,10 @@ class SubscriptionService {
 
 ### 7.2 定期購入商品作成
 ```
-商品ID: delilog_monthly_980
+商品ID: delilog_monthly_900
 名前: デリログ プレミアム
 説明: 全機能が使える月額プラン
-価格: ¥980
+価格: ¥900
 請求期間: 1ヶ月
 無料トライアル: 7日間
 ```

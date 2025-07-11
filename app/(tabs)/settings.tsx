@@ -5,15 +5,20 @@ import {
   StyleSheet, 
   SafeAreaView, 
   ScrollView,
-  TouchableOpacity 
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
+import { useSubscriptionStatus } from '@/store/subscriptionStore';
 
 export default function SettingsScreen() {
   const { user, profile, signOut } = useAuth();
+  const [isSigningOut, setIsSigningOut] = React.useState(false);
+  const { isBasic, subscriptionStatus, trialDaysRemaining, isLoading } = useSubscriptionStatus();
 
   const handleVehicleManagement = () => {
     console.log('*** 車両管理ボタン押下');
@@ -45,13 +50,39 @@ export default function SettingsScreen() {
     router.push('/settings/data-management');
   };
 
+
   const handleSignOut = async () => {
-    try {
-      console.log('*** ログアウトボタン押下');
-      await signOut();
-    } catch (error) {
-      console.error('ログアウトエラー:', error);
-    }
+    Alert.alert(
+      'ログアウト確認',
+      'ログアウトしてもよろしいですか？',
+      [
+        {
+          text: 'キャンセル',
+          style: 'cancel'
+        },
+        {
+          text: 'ログアウト',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('*** ログアウト実行');
+              setIsSigningOut(true);
+              await signOut();
+              console.log('*** ログアウト成功 - 手動でログイン画面にリダイレクト');
+              // 手動でログイン画面にリダイレクト
+              router.replace('/(auth)/login');
+            } catch (error) {
+              console.error('ログアウトエラー:', error);
+              setIsSigningOut(false);
+              Alert.alert(
+                'エラー',
+                'ログアウトに失敗しました。もう一度お試しください。'
+              );
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -70,9 +101,9 @@ export default function SettingsScreen() {
 
         {/* 設定メニュー */}
         <View style={styles.menuSection}>
-          {/* ベーシックプラン */}
+          {/* 現在のプラン表示 */}
           <TouchableOpacity 
-            style={[styles.menuItem, styles.basicMenuItem]}
+            style={[styles.menuItem, isBasic ? styles.basicMenuItem : styles.freeMenuItem]}
             onPress={() => router.push('/subscription')}
             activeOpacity={0.7}
             hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
@@ -80,13 +111,22 @@ export default function SettingsScreen() {
             delayPressOut={0}
           >
             <View style={styles.menuContent}>
-              <View style={styles.basicHeader}>
-                <Text style={[styles.menuTitle, styles.basicTitle]}>ベーシックプラン</Text>
-                <View style={styles.basicBadge}>
-                  <Text style={styles.basicBadgeText}>★</Text>
+              <View style={styles.planHeader}>
+                <Text style={[styles.menuTitle, isBasic ? styles.basicTitle : styles.freeTitle]}>
+                  {isBasic ? 'ベーシックプラン' : 'フリープラン'}
+                </Text>
+                <View style={[styles.planBadge, isBasic ? styles.basicBadge : styles.freeBadge]}>
+                  <Text style={[styles.planBadgeText, isBasic ? styles.basicBadgeText : styles.freeBadgeText]}>
+                    {isBasic ? '★' : '無料'}
+                  </Text>
                 </View>
               </View>
-              <Text style={styles.menuSubtitle}>基本機能が使える月額プラン</Text>
+              <Text style={styles.menuSubtitle}>
+                {isBasic ? '基本機能が使える月額プラン' : 'プランを変更して機能を拡張'}
+                {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
+                  <Text style={styles.trialIndicator}> • トライアル残り{trialDaysRemaining}日</Text>
+                )}
+              </Text>
             </View>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
@@ -191,14 +231,19 @@ export default function SettingsScreen() {
         {/* ログアウトボタン */}
         <View style={styles.signOutSection}>
           <TouchableOpacity 
-            style={styles.signOutButton}
+            style={[styles.signOutButton, isSigningOut && styles.signOutButtonDisabled]}
             onPress={handleSignOut}
             activeOpacity={0.8}
             hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             delayPressIn={0}
             delayPressOut={0}
+            disabled={isSigningOut}
           >
-            <Text style={styles.signOutText}>ログアウト</Text>
+            {isSigningOut ? (
+              <ActivityIndicator size="small" color={colors.cream} />
+            ) : (
+              <Text style={styles.signOutText}>ログアウト</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -274,6 +319,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+  },
+  signOutButtonDisabled: {
+    backgroundColor: colors.darkGray,
   },
   signOutText: {
     fontSize: 16,
@@ -285,7 +335,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: colors.orange + '05',
   },
-  basicHeader: {
+  freeMenuItem: {
+    borderColor: colors.darkGray,
+    borderWidth: 2,
+    backgroundColor: colors.darkGray + '05',
+  },
+  planHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 4,
@@ -293,18 +348,36 @@ const styles = StyleSheet.create({
   basicTitle: {
     color: colors.orange,
   },
-  basicBadge: {
+  freeTitle: {
+    color: colors.darkGray,
+  },
+  planBadge: {
     marginLeft: 8,
-    backgroundColor: colors.orange,
     borderRadius: 10,
-    width: 20,
-    height: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  basicBadge: {
+    backgroundColor: colors.orange,
+  },
+  freeBadge: {
+    backgroundColor: colors.darkGray,
+  },
+  planBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
   basicBadgeText: {
     color: colors.cream,
+  },
+  freeBadgeText: {
+    color: colors.cream,
+  },
+  trialIndicator: {
+    color: colors.success,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
 });

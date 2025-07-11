@@ -22,7 +22,7 @@ import { colors } from '@/constants/colors';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
 import { tenkoAfterSchema, type TenkoAfterFormData } from '@/types/tenkoValidation';
-import { VoiceInputButton } from '@/components/VoiceInputButton';
+import VoiceInputButton from '@/components/ui/VoiceInputButton';
 import { TenkoService } from '@/services/tenkoService';
 import { useOfflineStore, useNetworkStatus, useIsOffline } from '@/store/offlineStore';
 
@@ -51,6 +51,7 @@ export default function TenkoAfterScreen() {
       checkMethod: '対面',
       executor: '本人',
       alcoholLevel: '0.00',
+      alcoholDetectorUsed: true,
       healthStatus: 'good',
       operationStatus: 'ok',
       notes: '',
@@ -83,6 +84,7 @@ export default function TenkoAfterScreen() {
     setValue('checkMethod', '対面', { shouldValidate: true });
     setValue('executor', '本人', { shouldValidate: true });
     setValue('alcoholLevel', '0.00', { shouldValidate: true });
+    setValue('alcoholDetectorUsed', true, { shouldValidate: true });
     setValue('notes', '', { shouldValidate: true });
   }, [vehicles, setValue, watchedValues.vehicleId]);
 
@@ -432,30 +434,85 @@ export default function TenkoAfterScreen() {
         {/* アルコール検知 */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>アルコール検知</Text>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>アルコール数値</Text>
-            <Controller
-              control={control}
-              name="alcoholLevel"
-              render={({ field: { value, onChange } }) => (
-                <TextInput
-                  style={styles.alcoholInput}
-                  value={value}
-                  onChangeText={onChange}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.beige}
-                  keyboardType="decimal-pad"
-                  returnKeyType="done"
-                  onSubmitEditing={() => {
-                    Keyboard.dismiss();
-                  }}
+          <View style={styles.row}>
+            <View style={styles.halfWidth}>
+              <Text style={styles.label}>検知器使用</Text>
+              <Controller
+                control={control}
+                name="alcoholDetectorUsed"
+                render={({ field: { value, onChange } }) => (
+                  <View style={styles.alcoholDetectorContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.alcoholDetectorOption,
+                        value === true && { backgroundColor: colors.charcoal }
+                      ]}
+                      onPress={() => onChange(true)}
+                    >
+                      <Text style={[
+                        styles.alcoholDetectorOptionText,
+                        value === true && styles.alcoholDetectorOptionTextSelected
+                      ]}>
+                        使用
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.alcoholDetectorOption,
+                        value === false && { backgroundColor: colors.charcoal }
+                      ]}
+                      onPress={() => onChange(false)}
+                    >
+                      <Text style={[
+                        styles.alcoholDetectorOptionText,
+                        value === false && styles.alcoholDetectorOptionTextSelected
+                      ]}>
+                        未使用
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+            </View>
+            
+            <View style={styles.halfWidth}>
+              <Text style={styles.label}>アルコール数値</Text>
+              <View style={styles.alcoholInputContainer}>
+                <Controller
+                  control={control}
+                  name="alcoholLevel"
+                  render={({ field: { value, onChange } }) => (
+                    <TextInput
+                      style={[
+                        styles.alcoholInput,
+                        !watchedValues.alcoholDetectorUsed && styles.alcoholInputDisabled
+                      ]}
+                      value={watchedValues.alcoholDetectorUsed ? value : ''}
+                      onChangeText={watchedValues.alcoholDetectorUsed ? onChange : undefined}
+                      placeholder={watchedValues.alcoholDetectorUsed ? "0.00" : ""}
+                      placeholderTextColor={colors.beige}
+                      keyboardType="decimal-pad"
+                      returnKeyType="done"
+                      onSubmitEditing={() => {
+                        Keyboard.dismiss();
+                      }}
+                      editable={watchedValues.alcoholDetectorUsed}
+                    />
+                  )}
                 />
-              )}
-            />
-            <Text style={styles.unit}>mg/L</Text>
+                <Text style={[
+                  styles.unit,
+                  !watchedValues.alcoholDetectorUsed && styles.unitDisabled
+                ]}>
+                  mg/L
+                </Text>
+              </View>
+            </View>
           </View>
-          {errors.alcoholLevel && (
-            <Text style={styles.errorText}>{errors.alcoholLevel.message}</Text>
+          {(errors.alcoholLevel || errors.alcoholDetectorUsed) && (
+            <Text style={styles.errorText}>
+              {errors.alcoholLevel?.message || errors.alcoholDetectorUsed?.message}
+            </Text>
           )}
         </View>
 
@@ -564,7 +621,7 @@ export default function TenkoAfterScreen() {
                 />
                 <View style={styles.voiceInputContainer}>
                   <VoiceInputButton
-                    onVoiceInput={(text) => {
+                    onVoiceResult={(text) => {
                       // 音声入力されたテキストを追加
                       const currentValue = value || '';
                       onChange(currentValue ? `${currentValue}\n${text}` : text);
@@ -781,6 +838,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  alcoholDetectorContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  alcoholDetectorOption: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: colors.beige,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  alcoholDetectorOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.charcoal,
+  },
+  alcoholDetectorOptionTextSelected: {
+    color: colors.cream,
+  },
+  alcoholInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   alcoholInput: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
@@ -789,12 +874,20 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: colors.charcoal,
-    width: 80,
+    width: 100,
     textAlign: 'center',
+  },
+  alcoholInputDisabled: {
+    backgroundColor: colors.lightGray,
+    borderColor: colors.lightGray,
+    color: colors.darkGray,
   },
   unit: {
     fontSize: 14,
     color: colors.darkGray,
+  },
+  unitDisabled: {
+    color: colors.lightGray,
   },
   healthStatusContainer: {
     flexDirection: 'row',

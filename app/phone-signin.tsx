@@ -24,6 +24,8 @@ import { phoneAuthService } from '@/services/phoneAuthService';
 import { colors } from '@/constants/colors';
 import { Logger } from '@/utils/logger';
 import { supabase } from '@/services/supabase';
+import { authSessionService } from '@/services/authSessionService';
+import { biometricAuthService } from '@/services/biometricAuthService';
 
 export default function PhoneSignInScreen() {
   const [step, setStep] = useState<'phone' | 'code'>('phone');
@@ -31,6 +33,52 @@ export default function PhoneSignInScreen() {
   const [verificationCode, setVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+
+  // 初期化時に生体認証の確認
+  React.useEffect(() => {
+    checkBiometricAvailability();
+  }, []);
+
+  const checkBiometricAvailability = async () => {
+    const sessionInfo = await authSessionService.getSessionInfo();
+    if (sessionInfo.biometricEnabled) {
+      const biometricResult = await biometricAuthService.isBiometricAvailable();
+      setBiometricAvailable(biometricResult.success);
+    }
+  };
+
+  // 生体認証でログイン
+  const handleBiometricLogin = async () => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      // 生体認証を実行
+      const biometricResult = await biometricAuthService.authenticate(
+        'アプリにログインするために認証が必要です'
+      );
+      
+      if (biometricResult.success) {
+        // 既存のセッションがあるかチェック
+        const session = await supabase.auth.getSession();
+        if (session.data.session) {
+          // セッションを延長
+          await authSessionService.extendSessionWithBiometric();
+          router.replace('/');
+        } else {
+          Alert.alert('情報', 'セッションが切れています。SMS認証を行ってください。');
+        }
+      } else {
+        Alert.alert('認証エラー', biometricResult.message);
+      }
+    } catch (error) {
+      Logger.error('生体認証ログインエラー', error);
+      Alert.alert('エラー', '生体認証でのログインに失敗しました');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // 電話番号フォーマット
   const formatPhoneInput = (text: string) => {
@@ -94,6 +142,27 @@ export default function PhoneSignInScreen() {
       
       if (result.success) {
         Logger.success('電話番号認証成功', result.user?.id);
+        
+        // 生体認証が利用可能な場合は有効化を提案
+        const biometricCheck = await biometricAuthService.isBiometricAvailable();
+        if (biometricCheck.success) {
+          Alert.alert(
+            '生体認証の設定',
+            '次回からSMS認証なしでログインできます。生体認証を有効にしますか？',
+            [
+              { text: 'あとで', style: 'cancel' },
+              { 
+                text: '有効にする', 
+                onPress: async () => {
+                  const enableResult = await authSessionService.enableBiometricAuth();
+                  if (enableResult.success) {
+                    Alert.alert('設定完了', enableResult.message);
+                  }
+                }
+              }
+            ]
+          );
+        }
         
         // 認証成功後、プロフィール作成が必要かどうかチェック
         const { data: profile } = await supabase
@@ -188,6 +257,18 @@ export default function PhoneSignInScreen() {
           <Text style={styles.buttonText}>認証コードを送信</Text>
         )}
       </TouchableOpacity>
+
+      {/* 生体認証ボタン */}
+      {biometricAvailable && (
+        <TouchableOpacity
+          style={[styles.biometricButton, isLoading && styles.buttonDisabled]}
+          onPress={handleBiometricLogin}
+          disabled={isLoading}
+        >
+          <Ionicons name="finger-print" size={24} color={colors.orange} />
+          <Text style={styles.biometricText}>生体認証でログイン</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 
@@ -405,5 +486,22 @@ const styles = StyleSheet.create({
     color: colors.orange,
     fontSize: 16,
     fontWeight: '500',
+  },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 2,
+    borderColor: colors.orange,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  biometricText: {
+    color: colors.orange,
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 8,
   },
 });

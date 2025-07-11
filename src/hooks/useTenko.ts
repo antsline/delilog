@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { useTenkoStore } from '@/store/tenkoStore';
 import { TenkoService } from '@/services/tenkoService';
@@ -45,7 +45,7 @@ export function useTenko() {
     };
 
     loadInitialData();
-  }, [user?.id]);
+  }, [user?.id, setLoading, setError, setTodayRecords, setVehicles]);
 
   // リアルタイム更新の設定
   useEffect(() => {
@@ -59,16 +59,16 @@ export function useTenko() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user?.id]);
+  }, [user?.id, setTodayRecords]);
 
-  // 今日のステータス情報
-  const todayStatus = {
+  // 今日のステータス情報（メモ化で無限ループを防ぐ）
+  const todayStatus = useMemo(() => ({
     beforeCompleted: isCompleted('before'),
     afterCompleted: isCompleted('after'),
     beforeRecord: getTodayRecord('before'),
     afterRecord: getTodayRecord('after'),
     defaultVehicle: getDefaultVehicle(),
-  };
+  }), [isCompleted, getTodayRecord, getDefaultVehicle]);
 
   return {
     // データ
@@ -85,8 +85,8 @@ export function useTenko() {
     getDefaultVehicle,
     isCompleted,
     
-    // アクション
-    refreshData: async () => {
+    // アクション（メモ化で無限ループを防ぐ）
+    refreshData: useCallback(async () => {
       if (!user) return;
       try {
         setLoading(true);
@@ -101,6 +101,6 @@ export function useTenko() {
       } finally {
         setLoading(false);
       }
-    },
+    }, [user, setLoading, setTodayRecords, setVehicles, setError]),
   };
 }

@@ -41,7 +41,7 @@ class SubscriptionService {
   private readonly ENTITLEMENT_ID = Constants.expoConfig?.extra?.revenueCatEntitlementId || 
     process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID || 'delilog_basic';
   private readonly PRODUCT_ID = Constants.expoConfig?.extra?.revenueCatProductId || 
-    process.env.EXPO_PUBLIC_REVENUECAT_PRODUCT_ID || 'delilog_monthly_980';
+    process.env.EXPO_PUBLIC_REVENUECAT_PRODUCT_ID || 'delilog_monthly_900';
 
   private isInitialized = false;
 
@@ -222,7 +222,7 @@ class SubscriptionService {
           id: pkg.identifier,
           title: this.getLocalizedTitle(pkg.identifier),
           description: this.getLocalizedDescription(pkg.identifier),
-          price: product?.priceString || '¥1,000/月',
+          price: product?.priceString || '¥900/月',
           features: this.getFeaturesList(),
           trialDays: this.getTrialDays(pkg),
           isPopular: pkg.identifier === this.PRODUCT_ID,
@@ -341,7 +341,7 @@ class SubscriptionService {
         id: this.PRODUCT_ID,
         title: 'デリログ ベーシック',
         description: '基本機能が使える月額プラン',
-        price: '¥1,000/月',
+        price: '¥900/月',
         features: this.getFeaturesList(),
         trialDays: 7,
         isPopular: true,
