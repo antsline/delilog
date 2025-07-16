@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { TenkoRecord, TenkoRecordInsert, Vehicle, NoOperationDay, WorkSession, WorkSessionDetail } from '@/types/database';
+import { randomUUID } from 'expo-crypto';
 
 export class TenkoService {
   // 今日の点呼記録を取得（業務セッション対応版）
@@ -24,76 +25,141 @@ export class TenkoService {
   static async createTenkoRecord(record: TenkoRecordInsert): Promise<TenkoRecord> {
     // 業務前点呼の場合は新しいセッションを開始
     if (record.type === 'before') {
-      const workSessionId = crypto.randomUUID();
+      const workSessionId = randomUUID();
       const workDate = record.date; // 業務開始日を基準日とする
       
-      const recordWithSession = {
-        ...record,
-        work_session_id: workSessionId,
-        work_date: workDate
-      };
+      // work_session_idとwork_dateカラムが存在するかチェック
+      try {
+        const recordWithSession = {
+          ...record,
+          work_session_id: workSessionId,
+          work_date: workDate
+        };
 
-      const { data, error } = await supabase
-        .from('tenko_records')
-        .insert(recordWithSession)
-        .select()
-        .single();
+        const { data, error } = await supabase
+          .from('tenko_records')
+          .insert(recordWithSession)
+          .select()
+          .single();
 
-      if (error) throw error;
-      return data;
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        // work_session_idカラムが存在しない場合は従来の方式で作成
+        console.log('work_session_id カラムが存在しないため、従来の方式で作成します');
+        const { data, error: fallbackError } = await supabase
+          .from('tenko_records')
+          .insert(record)
+          .select()
+          .single();
+
+        if (fallbackError) throw fallbackError;
+        return data;
+      }
     }
     
     // 業務後点呼の場合は対応する業務前点呼のセッションを検索
     if (record.type === 'after') {
-      // 既に業務後点呼が存在するかチェック
-      const existingAfterRecord = await supabase
-        .from('tenko_records')
-        .select('id')
-        .eq('user_id', record.user_id)
-        .eq('vehicle_id', record.vehicle_id)
-        .eq('type', 'after')
-        .eq('date', record.date)
-        .single();
+      try {
+        // 既に業務後点呼が存在するかチェック
+        const existingAfterRecord = await supabase
+          .from('tenko_records')
+          .select('id')
+          .eq('user_id', record.user_id)
+          .eq('vehicle_id', record.vehicle_id)
+          .eq('type', 'after')
+          .eq('date', record.date)
+          .single();
 
-      if (existingAfterRecord.data) {
-        throw new Error('本日の業務後点呼は既に記録されています。');
+        if (existingAfterRecord.data) {
+          throw new Error('本日の業務後点呼は既に記録されています。');
+        }
+
+        const activeSession = await this.getActiveWorkSession(record.user_id, record.vehicle_id);
+        
+        if (!activeSession) {
+          throw new Error('対応する業務前点呼が見つかりません。先に業務前点呼を完了してください。');
+        }
+
+        const recordWithSession = {
+          ...record,
+          work_session_id: activeSession.work_session_id,
+          work_date: activeSession.work_date
+        };
+
+        const { data, error } = await supabase
+          .from('tenko_records')
+          .insert(recordWithSession)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        // work_sessionsビューが存在しない場合は従来の方式
+        console.log('work_sessions ビューが存在しないため、従来の方式で作成します');
+        
+        // 今日の業務前点呼を検索（複数セッションに対応）
+        const { data: beforeRecords, error: beforeError } = await supabase
+          .from('tenko_records')
+          .select('*')
+          .eq('user_id', record.user_id)
+          .eq('vehicle_id', record.vehicle_id)
+          .eq('type', 'before')
+          .eq('date', record.date)
+          .order('created_at', { ascending: false });
+
+        if (beforeError) {
+          console.error('業務前点呼検索エラー:', beforeError);
+          throw new Error('業務前点呼が見つかりません。先に業務前点呼を完了してください。');
+        }
+
+        if (!beforeRecords || beforeRecords.length === 0) {
+          throw new Error('業務前点呼が見つかりません。先に業務前点呼を完了してください。');
+        }
+
+        // 対応する業務後点呼がない業務前点呼を探す
+        let targetBeforeRecord = null;
+        for (const beforeRecord of beforeRecords) {
+          const { data: existingAfterRecord } = await supabase
+            .from('tenko_records')
+            .select('id')
+            .eq('user_id', record.user_id)
+            .eq('vehicle_id', record.vehicle_id)
+            .eq('type', 'after')
+            .eq('date', record.date)
+            .eq('work_session_id', beforeRecord.work_session_id)
+            .single();
+
+          if (!existingAfterRecord) {
+            targetBeforeRecord = beforeRecord;
+            break;
+          }
+        }
+
+        if (!targetBeforeRecord) {
+          throw new Error('対応する業務前点呼が見つかりません。先に業務前点呼を完了してください。');
+        }
+
+        console.log('対応する業務前点呼発見:', targetBeforeRecord.work_session_id);
+
+        // 業務後点呼を作成（work_session_idを設定）
+        const recordWithSession = {
+          ...record,
+          work_session_id: targetBeforeRecord.work_session_id,
+          work_date: targetBeforeRecord.work_date || targetBeforeRecord.date
+        };
+
+        const { data, error: fallbackError } = await supabase
+          .from('tenko_records')
+          .insert(recordWithSession)
+          .select()
+          .single();
+
+        if (fallbackError) throw fallbackError;
+        console.log('業務後点呼作成成功（フォールバック）:', data.work_session_id);
+        return data;
       }
-
-      const activeSession = await this.getActiveWorkSession(record.user_id, record.vehicle_id);
-      
-      if (!activeSession) {
-        throw new Error('対応する業務前点呼が見つかりません。先に業務前点呼を完了してください。');
-      }
-
-      const recordWithSession = {
-        ...record,
-        work_session_id: activeSession.work_session_id,
-        work_date: activeSession.work_date
-      };
-
-      const { data, error } = await supabase
-        .from('tenko_records')
-        .insert(recordWithSession)
-        .select()
-        .single();
-
-      if (error) throw error;
-      
-      // 業務後点呼が完了したら、セッションを完了状態に更新
-      await supabase
-        .from('work_sessions')
-        .update({ 
-          session_status: 'completed',
-          session_end: new Date().toISOString()
-        })
-        .eq('work_session_id', activeSession.work_session_id);
-      
-      console.log('*** TenkoService: 業務後点呼完了でセッションを完了状態に更新:', {
-        workSessionId: activeSession.work_session_id,
-        timestamp: new Date().toISOString()
-      });
-      
-      return data;
     }
 
     // 従来の方式（後方互換性）
@@ -179,105 +245,201 @@ export class TenkoService {
 
   // アクティブな業務セッションを取得
   static async getActiveWorkSession(userId: string, vehicleId: string): Promise<WorkSession | null> {
-    const { data, error } = await supabase
-      .from('work_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('vehicle_id', vehicleId)
-      .eq('session_status', 'in_progress')
-      .order('session_start', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('work_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('vehicle_id', vehicleId)
+        .eq('session_status', 'in_progress')
+        .order('session_start', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (error) throw error;
-    return data;
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.log('work_sessions ビューでエラー、フォールバック処理を実行:', error);
+      
+      // フォールバック: 今日の業務前点呼で対応する業務後点呼がないものを検索
+      const today = new Date().toISOString().split('T')[0];
+      
+      try {
+        const { data: beforeRecords, error: beforeError } = await supabase
+          .from('tenko_records')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('vehicle_id', vehicleId)
+          .eq('type', 'before')
+          .eq('date', today)
+          .order('created_at', { ascending: false });
+
+        if (beforeError) throw beforeError;
+        if (!beforeRecords || beforeRecords.length === 0) {
+          console.log('今日の業務前点呼が見つかりません');
+          return null;
+        }
+
+        // 最新の業務前点呼に対応する業務後点呼があるかチェック
+        for (const beforeRecord of beforeRecords) {
+          const { data: afterRecord, error: afterError } = await supabase
+            .from('tenko_records')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('vehicle_id', vehicleId)
+            .eq('type', 'after')
+            .eq('date', today)
+            .eq('work_session_id', beforeRecord.work_session_id)
+            .single();
+
+          if (afterError && afterError.code !== 'PGRST116') {
+            console.log('業務後点呼検索エラー:', afterError);
+            continue;
+          }
+
+          if (!afterRecord) {
+            // 対応する業務後点呼がない場合、このセッションはアクティブ
+            console.log('アクティブセッション発見:', beforeRecord.work_session_id);
+            return {
+              work_session_id: beforeRecord.work_session_id,
+              user_id: beforeRecord.user_id,
+              vehicle_id: beforeRecord.vehicle_id,
+              work_date: beforeRecord.work_date || beforeRecord.date,
+              session_start: beforeRecord.created_at,
+              session_end: null,
+              before_count: 1,
+              after_count: 0,
+              total_records: 1,
+              session_status: 'in_progress'
+            };
+          }
+        }
+
+        console.log('アクティブセッションが見つかりません');
+        return null;
+      } catch (fallbackError) {
+        console.error('フォールバック処理でもエラー:', fallbackError);
+        return null;
+      }
+    }
   }
 
   // 業務セッション詳細を取得
   static async getWorkSessionDetail(workSessionId: string): Promise<WorkSessionDetail | null> {
-    // 業務セッション基本情報を取得
-    const { data: session, error: sessionError } = await supabase
-      .from('work_sessions')
-      .select('*')
-      .eq('work_session_id', workSessionId)
-      .single();
+    try {
+      // 業務セッション基本情報を取得
+      const { data: session, error: sessionError } = await supabase
+        .from('work_sessions')
+        .select('*')
+        .eq('work_session_id', workSessionId)
+        .single();
 
-    if (sessionError) throw sessionError;
-    if (!session) return null;
+      if (sessionError) throw sessionError;
+      if (!session) return null;
 
-    // 点呼記録を取得
-    const { data: records, error: recordsError } = await supabase
-      .from('tenko_records')
-      .select('*')
-      .eq('work_session_id', workSessionId)
-      .order('created_at');
+      // 点呼記録を取得
+      const { data: records, error: recordsError } = await supabase
+        .from('tenko_records')
+        .select('*')
+        .eq('work_session_id', workSessionId)
+        .order('created_at');
 
-    if (recordsError) throw recordsError;
+      if (recordsError) throw recordsError;
 
-    // 車両情報を取得
-    const { data: vehicle, error: vehicleError } = await supabase
-      .from('vehicles')
-      .select('*')
-      .eq('id', session.vehicle_id)
-      .single();
+      // 車両情報を取得
+      const { data: vehicle, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('id', session.vehicle_id)
+        .single();
 
-    if (vehicleError) throw vehicleError;
+      if (vehicleError) throw vehicleError;
 
-    // レスポンスを構築
-    const beforeRecord = records?.find(r => r.type === 'before');
-    const afterRecord = records?.find(r => r.type === 'after');
+      // レスポンスを構築
+      const beforeRecord = records?.find(r => r.type === 'before');
+      const afterRecord = records?.find(r => r.type === 'after');
 
-    return {
-      ...session,
-      before_record: beforeRecord,
-      after_record: afterRecord,
-      vehicle: vehicle
-    };
-  }
-
-  // ユーザーの業務セッション一覧を取得
-  static async getUserWorkSessions(
-    userId: string,
-    startDate?: string,
-    endDate?: string
-  ): Promise<WorkSession[]> {
-    let query = supabase
-      .from('work_sessions')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (startDate) {
-      query = query.gte('work_date', startDate);
+      return {
+        ...session,
+        before_record: beforeRecord,
+        after_record: afterRecord,
+        vehicle: vehicle
+      };
+    } catch (error) {
+      console.log('work_sessions ビューが存在しないため、従来の方式で検索します');
+      return null;
     }
-    
-    if (endDate) {
-      query = query.lte('work_date', endDate);
-    }
-
-    const { data, error } = await query.order('work_date', { ascending: false });
-
-    if (error) throw error;
-    return data || [];
   }
 
   // 今日のアクティブセッションを取得（ホーム画面用）
   static async getTodayActiveSession(userId: string): Promise<WorkSessionDetail | null> {
-    // 今日開始された未完了セッションを検索
-    const today = new Date().toISOString().split('T')[0];
-    
-    const { data: sessions, error } = await supabase
-      .from('work_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('session_status', 'in_progress')
-      .gte('work_date', today)
-      .order('session_start', { ascending: false })
-      .limit(1);
+    try {
+      // 今日開始された未完了セッションを検索
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data: sessions, error } = await supabase
+        .from('work_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('session_status', 'in_progress')
+        .gte('work_date', today)
+        .order('session_start', { ascending: false })
+        .limit(1);
 
-    if (error) throw error;
-    if (!sessions || sessions.length === 0) return null;
+      if (error) throw error;
+      if (!sessions || sessions.length === 0) return null;
 
-    return this.getWorkSessionDetail(sessions[0].work_session_id);
+      return this.getWorkSessionDetail(sessions[0].work_session_id);
+    } catch (error) {
+      console.log('work_sessions ビューが存在しないため、従来の方式で検索します');
+      
+      // 今日の業務前点呼で対応する業務後点呼がないものを検索
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data: beforeRecords, error: beforeError } = await supabase
+        .from('tenko_records')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('type', 'before')
+        .eq('date', today)
+        .order('created_at', { ascending: false });
+
+      if (beforeError) throw beforeError;
+      if (!beforeRecords || beforeRecords.length === 0) return null;
+
+      // 対応する業務後点呼がない業務前点呼を探す
+      for (const beforeRecord of beforeRecords) {
+        const { data: afterRecord } = await supabase
+          .from('tenko_records')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('vehicle_id', beforeRecord.vehicle_id)
+          .eq('type', 'after')
+          .eq('date', today)
+          .single();
+
+        if (!afterRecord) {
+          // 対応する業務後点呼がない場合はアクティブセッション
+          return {
+            work_session_id: beforeRecord.work_session_id || beforeRecord.id,
+            user_id: beforeRecord.user_id,
+            vehicle_id: beforeRecord.vehicle_id,
+            work_date: beforeRecord.work_date || beforeRecord.date,
+            session_start: beforeRecord.created_at,
+            session_end: null,
+            before_count: 1,
+            after_count: 0,
+            total_records: 1,
+            session_status: 'in_progress' as const,
+            before_record: beforeRecord,
+            after_record: undefined,
+            vehicle: undefined
+          };
+        }
+      }
+
+      return null;
+    }
   }
 
   // 今日の業務セッション状況を取得（ホーム画面用）
@@ -288,114 +450,105 @@ export class TenkoService {
     latestCompletedSession?: WorkSessionDetail;
     canStartNewSession: boolean;
   }> {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // 今日のセッション一覧を取得
-    const { data: sessions, error } = await supabase
-      .from('work_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('work_date', today)
-      .order('session_start', { ascending: false });
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // 今日のセッション一覧を取得
+      const { data: sessions, error } = await supabase
+        .from('work_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('work_date', today)
+        .order('session_start', { ascending: false });
 
-    if (error) throw error;
-    
-    const activeSessions = sessions?.filter(s => s.session_status === 'in_progress') || [];
-    const completedSessions = sessions?.filter(s => s.session_status === 'completed') || [];
-    
-    // 実際のセッション状態を確認（データベースの状態が正しくない場合があるため）
-    const actualActiveSessions = [];
-    const actualCompletedSessions = [];
-    
-    for (const session of activeSessions) {
-      const detail = await this.getWorkSessionDetail(session.work_session_id);
-      if (detail) {
-        // セッションに関連付けられていない業務後点呼レコードがある場合は、セッションを更新
-        if (detail.before_record && !detail.after_record) {
-          // 同じ車両・日付で業務後点呼があるかチェック
-          const { data: orphanAfterRecord } = await supabase
-            .from('tenko_records')
-            .select('*')
-            .eq('user_id', session.user_id)
-            .eq('vehicle_id', session.vehicle_id)
-            .eq('type', 'after')
-            .eq('date', session.work_date)
-            .is('work_session_id', null)
-            .single();
-          
-          if (orphanAfterRecord) {
-            // 孤立したレコードをセッションに関連付け
-            await supabase
-              .from('tenko_records')
-              .update({
-                work_session_id: session.work_session_id,
-                work_date: session.work_date
-              })
-              .eq('id', orphanAfterRecord.id);
-            
-            // セッションを完了状態に更新
-            await supabase
-              .from('work_sessions')
-              .update({
-                session_status: 'completed',
-                session_end: new Date().toISOString()
-              })
-              .eq('work_session_id', session.work_session_id);
-            
-            console.log('*** TenkoService: 孤立レコードをセッションに関連付け完了:', {
-              sessionId: session.work_session_id,
-              recordId: orphanAfterRecord.id,
-              timestamp: new Date().toISOString()
-            });
-            
-            // 更新後のセッション詳細を取得
-            const updatedDetail = await this.getWorkSessionDetail(session.work_session_id);
-            if (updatedDetail && updatedDetail.before_record && updatedDetail.after_record) {
-              actualCompletedSessions.push(updatedDetail);
-            } else {
-              actualActiveSessions.push(detail);
-            }
-          } else {
-            // 業務前のみならアクティブ
-            actualActiveSessions.push(detail);
-          }
-        } else if (detail.before_record && detail.after_record) {
-          // 両方の記録があるなら完了
-          actualCompletedSessions.push(detail);
-        } else if (detail.before_record) {
-          // 業務前のみならアクティブ
-          actualActiveSessions.push(detail);
+      if (error) throw error;
+      
+      const activeSessions = sessions?.filter(s => s.session_status === 'in_progress') || [];
+      const completedSessions = sessions?.filter(s => s.session_status === 'completed') || [];
+      
+      const hasActiveSession = activeSessions.length > 0;
+      const hasCompletedSession = completedSessions.length > 0;
+      
+      // アクティブセッション（業務前は完了、業務後は未完了）
+      const activeSession = hasActiveSession ? await this.getWorkSessionDetail(activeSessions[0].work_session_id) : undefined;
+      
+      // 最新の完了セッション
+      const latestCompletedSession = hasCompletedSession ? await this.getWorkSessionDetail(completedSessions[0].work_session_id) : undefined;
+      
+      // 新しいセッションを開始できるかどうか
+      const canStartNewSession = !hasActiveSession;
+      
+      return {
+        hasActiveSession,
+        hasCompletedSession,
+        activeSession,
+        latestCompletedSession,
+        canStartNewSession
+      };
+    } catch (error) {
+      console.log('work_sessions ビューが存在しないため、従来の方式で検索します');
+      
+      const today = new Date().toISOString().split('T')[0];
+      
+      // 今日の点呼記録を取得
+      const records = await this.getTodayRecords(userId);
+      
+      const beforeRecords = records.filter(r => r.type === 'before');
+      const afterRecords = records.filter(r => r.type === 'after');
+      
+      // セッション状態を構築
+      const sessions: WorkSessionDetail[] = [];
+      
+      // work_session_idが存在する場合はそれでグループ化、存在しない場合は日付・車両でグループ化
+      const sessionMap = new Map<string, { before?: TenkoRecord; after?: TenkoRecord }>();
+      
+      beforeRecords.forEach(record => {
+        const sessionKey = record.work_session_id || `${record.date}_${record.vehicle_id}`;
+        if (!sessionMap.has(sessionKey)) {
+          sessionMap.set(sessionKey, {});
+        }
+        sessionMap.get(sessionKey)!.before = record;
+      });
+      
+      afterRecords.forEach(record => {
+        const sessionKey = record.work_session_id || `${record.date}_${record.vehicle_id}`;
+        if (!sessionMap.has(sessionKey)) {
+          sessionMap.set(sessionKey, {});
+        }
+        sessionMap.get(sessionKey)!.after = record;
+      });
+      
+      for (const [sessionKey, session] of sessionMap) {
+        if (session.before) {
+          sessions.push({
+            work_session_id: session.before.work_session_id || session.before.id,
+            user_id: session.before.user_id,
+            vehicle_id: session.before.vehicle_id,
+            work_date: session.before.work_date || session.before.date,
+            session_start: session.before.created_at,
+            session_end: session.after?.created_at || null,
+            before_count: 1,
+            after_count: session.after ? 1 : 0,
+            total_records: session.after ? 2 : 1,
+            session_status: session.after ? 'completed' : 'in_progress' as const,
+            before_record: session.before,
+            after_record: session.after,
+            vehicle: undefined
+          });
         }
       }
+      
+      const activeSessions = sessions.filter(s => s.session_status === 'in_progress');
+      const completedSessions = sessions.filter(s => s.session_status === 'completed');
+      
+      return {
+        hasActiveSession: activeSessions.length > 0,
+        hasCompletedSession: completedSessions.length > 0,
+        activeSession: activeSessions[0],
+        latestCompletedSession: completedSessions[0],
+        canStartNewSession: activeSessions.length === 0
+      };
     }
-    
-    for (const session of completedSessions) {
-      const detail = await this.getWorkSessionDetail(session.work_session_id);
-      if (detail) {
-        actualCompletedSessions.push(detail);
-      }
-    }
-    
-    const hasActiveSession = actualActiveSessions.length > 0;
-    const hasCompletedSession = actualCompletedSessions.length > 0;
-    
-    // アクティブセッション（業務前は完了、業務後は未完了）
-    const activeSession = actualActiveSessions[0] || undefined;
-    
-    // 最新の完了セッション
-    const latestCompletedSession = actualCompletedSessions[0] || undefined;
-    
-    // 新しいセッションを開始できるかどうか
-    // アクティブセッションがない場合は新規開始可能
-    const canStartNewSession = !hasActiveSession;
-    
-    return {
-      hasActiveSession,
-      hasCompletedSession,
-      activeSession,
-      latestCompletedSession,
-      canStartNewSession
-    };
   }
 
   // 指定月の点呼記録と運行なし日を取得

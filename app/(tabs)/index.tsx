@@ -364,7 +364,7 @@ function HomeScreen() {
                   {todayStatus.afterCompleted && todayStatus.afterRecord
                     ? `${new Date(todayStatus.afterRecord.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 記録済み`
                     : !todayStatus.beforeCompleted
-                      ? '業務前点呼を先に実施'
+                      ? '業務前点呼が必要'
                       : '運行終了後の確認'
                   }
                 </Text>
@@ -500,6 +500,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
+    minHeight: 120,
+    justifyContent: 'center',
   },
   actionButtonIcon: {
     width: 40,

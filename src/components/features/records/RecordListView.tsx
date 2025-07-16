@@ -12,6 +12,7 @@ import { withPerformanceMonitoring, usePerformanceMonitor } from '@/utils/perfor
 import { useOptimizedCallback } from '@/hooks/useOptimizedPerformance';
 import { recordComponentOptimization } from '@/utils/performanceReporter';
 import DayRecordCard from './DayRecordCard';
+import RecordDetailModal from './RecordDetailModal';
 
 interface RecordListViewProps {
   year: number;
@@ -56,6 +57,10 @@ function RecordListView({
 }: RecordListViewProps) {
   const { user } = useAuthStore();
   const { checkMemoryUsage, recordRenderTime } = usePerformanceMonitor();
+  
+  // 詳細モーダルの状態
+  const [selectedDayRecord, setSelectedDayRecord] = React.useState<DayRecord | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = React.useState(false);
   
   // パフォーマンス計測（改善版）
   const performanceMetrics = React.useRef({
@@ -133,7 +138,7 @@ function RecordListView({
       const sessionMap = new Map<string, { before?: TenkoRecord; after?: TenkoRecord }>();
       
       dayRecords.forEach(record => {
-        const sessionKey = record.work_session_id || `${record.date}_${record.vehicle_id}_${record.type}`;
+        const sessionKey = record.work_session_id || `${record.date}_${record.vehicle_id}`;
         if (!sessionMap.has(sessionKey)) {
           sessionMap.set(sessionKey, {});
         }
@@ -264,6 +269,18 @@ function RecordListView({
         type: 'tenko'
       }
     });
+  };
+
+  // 詳細モーダルを開く
+  const openDetailModal = (dayRecord: DayRecord) => {
+    setSelectedDayRecord(dayRecord);
+    setDetailModalVisible(true);
+  };
+
+  // 詳細モーダルを閉じる
+  const closeDetailModal = () => {
+    setDetailModalVisible(false);
+    setSelectedDayRecord(null);
   };
 
 
@@ -407,10 +424,7 @@ function RecordListView({
           <OptimizedDayRecordCard
             key={dayRecord.date}
             dayRecord={dayRecord}
-            onPress={() => {
-              // 詳細画面への遷移予定
-              console.log('タップされた日付:', dayRecord.date);
-            }}
+            onPress={() => openDetailModal(dayRecord)}
             onLongPress={() => {
               // 詳細画面への遷移予定
               console.log('長押しされた日付:', dayRecord.date);
@@ -419,6 +433,15 @@ function RecordListView({
           />
         ))}
       </ScrollView>
+
+      {/* 詳細モーダル */}
+      {selectedDayRecord && (
+        <RecordDetailModal
+          visible={detailModalVisible}
+          onClose={closeDetailModal}
+          dayRecord={selectedDayRecord}
+        />
+      )}
     </View>
   );
 }

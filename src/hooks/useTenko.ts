@@ -102,7 +102,20 @@ export function useTenko() {
 
     const subscription = TenkoService.subscribeToTenkoRecords(
       user.id,
-      (records) => setTodayRecords(records)
+      async (records) => {
+        setTodayRecords(records);
+        // 記録が更新されたらセッション状態も更新
+        try {
+          const sessionStatusResult = await TenkoService.getTodaySessionStatus(user.id);
+          setSessionStatus(sessionStatusResult);
+          console.log('*** useTenko: Session status updated after record change:', {
+            sessionStatusResult,
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('*** useTenko: Session status update error:', error);
+        }
+      }
     );
 
     return () => {
@@ -126,20 +139,16 @@ export function useTenko() {
       
       // アクティブセッションがある場合
       if (activeSession) {
-        // 記録ベースの情報も取得して補完
-        const recordBasedAfterRecord = getTodayRecord('after');
-        const recordBasedBeforeRecord = getTodayRecord('before');
-        
-        // 日付が変わった場合は、記録をリセット
-        const beforeCompleted = isNewDay(recordBasedBeforeRecord) ? false : (!!activeSession.before_record || !!recordBasedBeforeRecord);
-        const afterCompleted = isNewDay(recordBasedAfterRecord) ? false : (!!activeSession.after_record || !!recordBasedAfterRecord);
-        const shouldShowNextBusinessButton = beforeCompleted && afterCompleted && canStartNewSession && !isNewDay(recordBasedBeforeRecord) && !isNewDay(recordBasedAfterRecord);
+        // アクティブセッションの記録のみを参照（他のセッションの記録は無視）
+        const beforeCompleted = !!activeSession.before_record;
+        const afterCompleted = !!activeSession.after_record;
+        const shouldShowNextBusinessButton = beforeCompleted && afterCompleted && canStartNewSession;
         
         const status = {
           beforeCompleted,
           afterCompleted,
-          beforeRecord: isNewDay(recordBasedBeforeRecord) ? null : (activeSession.before_record || recordBasedBeforeRecord),
-          afterRecord: isNewDay(recordBasedAfterRecord) ? null : (activeSession.after_record || recordBasedAfterRecord),
+          beforeRecord: activeSession.before_record || null,
+          afterRecord: activeSession.after_record || null,
           defaultVehicle: getDefaultVehicle(),
           canStartNewSession: shouldShowNextBusinessButton ? canStartNewSession : false,
           activeSession,
@@ -148,9 +157,10 @@ export function useTenko() {
         
         console.log('*** useTenko: todayStatus computed (active session):', {
           status,
-          sessionId: activeSession.id,
+          sessionId: activeSession.work_session_id,
           sessionAfterRecord: activeSession.after_record,
-          recordBasedAfterRecord,
+          beforeCompleted,
+          afterCompleted,
           timestamp: new Date().toISOString()
         });
         

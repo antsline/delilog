@@ -300,7 +300,7 @@ class DataManagementService {
    */
   private async deleteUserData(userId: string): Promise<void> {
     const { error } = await supabase
-      .from('user_profiles')
+      .from('users_profile')
       .delete()
       .eq('id', userId);
 
@@ -370,7 +370,7 @@ class DataManagementService {
       const [tenkoResult, vehicleResult, profileResult] = await Promise.all([
         supabase.from('tenko_records').select('id', { count: 'exact' }).eq('user_id', userId),
         supabase.from('vehicles').select('id', { count: 'exact' }).eq('user_id', userId),
-        supabase.from('user_profiles').select('id').eq('id', userId).single(),
+        supabase.from('users_profile').select('id').eq('id', userId).single(),
       ]);
 
       // ローカルデータの確認

@@ -26,6 +26,7 @@ import { Logger } from '@/utils/logger';
 import { supabase } from '@/services/supabase';
 import { authSessionService } from '@/services/authSessionService';
 import { biometricAuthService } from '@/services/biometricAuthService';
+import Constants from 'expo-constants';
 
 export default function PhoneSignInScreen() {
   const [step, setStep] = useState<'phone' | 'code'>('phone');
@@ -35,6 +36,10 @@ export default function PhoneSignInScreen() {
   const [countdown, setCountdown] = useState(0);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [smsRemainingCount, setSmsRemainingCount] = useState<number | null>(null);
+  
+  // 開発環境チェック
+  const isDevelopment = Constants.expoConfig?.extra?.appEnvironment === 'development' || 
+                        process.env.EXPO_PUBLIC_APP_ENV === 'development';
 
   // 初期化時に生体認証とSMS制限の確認
   React.useEffect(() => {
@@ -200,7 +205,7 @@ export default function PhoneSignInScreen() {
         
         // 認証成功後、プロフィール作成が必要かどうかチェック
         const { data: profile } = await supabase
-          .from('user_profiles')
+          .from('users_profile')
           .select('*')
           .eq('user_id', result.user.id)
           .single();
@@ -221,6 +226,129 @@ export default function PhoneSignInScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 開発環境専用：認証をスキップしてログイン
+  const handleDevSkipAuth = async () => {
+    if (!isDevelopment) {
+      Alert.alert('エラー', 'この機能は開発環境でのみ使用できます');
+      return;
+    }
+
+    Alert.alert(
+      '開発者用ログイン',
+      '認証をスキップしてログインしますか？この機能は開発環境でのみ使用できます。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { 
+          text: 'ログイン', 
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              // 開発環境用の固定ユーザーとしてログイン（存在しない場合は作成）
+              let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: 'dev@delilog.app',
+                password: 'delilog-dev-2024'
+              });
+              
+              // ユーザーが存在しない場合は新規作成
+              if (authError && authError.message === 'Invalid login credentials') {
+                console.log('開発者アカウントが存在しないため、新規作成します');
+                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                  email: 'dev@delilog.app',
+                  password: 'delilog-dev-2024'
+                });
+                
+                if (signUpError) {
+                  throw signUpError;
+                }
+                
+                authData = signUpData;
+              } else if (authError) {
+                throw authError;
+              }
+
+              if (authData.user) {
+                console.log('認証成功、ユーザーID:', authData.user.id);
+                
+                // プロフィールが存在するかチェック
+                const { data: profile, error: profileSelectError } = await supabase
+                  .from('users_profile')
+                  .select('*')
+                  .eq('id', authData.user.id)
+                  .single();
+
+                console.log('プロフィール検索結果:', { profile, profileSelectError });
+
+                if (profile) {
+                  // プロフィールが存在する場合、メイン画面に遷移
+                  console.log('既存プロフィール発見、メイン画面に遷移');
+                  router.replace('/');
+                } else {
+                  // プロフィールが存在しない場合、開発用プロフィールを作成
+                  console.log('プロフィールが存在しないため、開発用プロフィールを作成');
+                  const { data: newProfile, error: profileError } = await supabase
+                    .from('users_profile')
+                    .insert({
+                      id: authData.user.id,
+                      company_name: '開発テスト会社',
+                      driver_name: '開発テストドライバー',
+                      office_name: '開発テスト営業所',
+                      subscription_tier: 'basic',
+                      subscription_status: 'active',
+                    })
+                    .select()
+                    .single();
+
+                  if (profileError) {
+                    console.error('プロフィール作成エラー詳細:');
+                    console.error('- message:', profileError.message);
+                    console.error('- code:', profileError.code);
+                    console.error('- details:', profileError.details);
+                    console.error('- hint:', profileError.hint);
+                    console.error('- full error:', profileError);
+                    throw new Error(`プロフィール作成に失敗しました: ${profileError.message || profileError.code || 'Unknown error'}`);
+                  }
+
+                  console.log('プロフィール作成成功:', newProfile);
+
+                  // デフォルト車両も作成
+                  const { data: newVehicle, error: vehicleError } = await supabase
+                    .from('vehicles')
+                    .insert({
+                      user_id: authData.user.id,
+                      plate_number: '開発-1234',
+                      vehicle_name: '開発テスト車両',
+                      is_default: true,
+                      is_active: true,
+                    })
+                    .select()
+                    .single();
+
+                  if (vehicleError) {
+                    console.warn('車両作成エラー:', vehicleError);
+                  } else {
+                    console.log('車両作成成功:', newVehicle);
+                  }
+
+                  console.log('開発用アカウント設定完了、メイン画面に遷移');
+                  router.replace('/');
+                }
+              }
+            } catch (error) {
+              console.error('開発者ログインエラー詳細:');
+              console.error('- error:', error);
+              console.error('- message:', error?.message);
+              console.error('- stack:', error?.stack);
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              Alert.alert('エラー', `開発者ログインに失敗しました: ${errorMessage}`);
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // 再送信カウントダウン
@@ -308,6 +436,18 @@ export default function PhoneSignInScreen() {
             <Text style={styles.biometricText}>生体認証でログイン</Text>
           </TouchableOpacity>
         )}
+
+        {/* 開発者用スキップボタン */}
+        {isDevelopment && (
+          <TouchableOpacity
+            style={[styles.devSkipButton, isLoading && styles.buttonDisabled]}
+            onPress={handleDevSkipAuth}
+            disabled={isLoading}
+          >
+            <Ionicons name="code" size={20} color={colors.charcoal} />
+            <Text style={styles.devSkipText}>開発者用：認証スキップ</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -368,6 +508,18 @@ export default function PhoneSignInScreen() {
             {countdown > 0 ? `再送信まで ${countdown}秒` : '認証コードを再送信'}
           </Text>
         </TouchableOpacity>
+
+        {/* 開発者用スキップボタン */}
+        {isDevelopment && (
+          <TouchableOpacity
+            style={[styles.devSkipButton, isLoading && styles.buttonDisabled]}
+            onPress={handleDevSkipAuth}
+            disabled={isLoading}
+          >
+            <Ionicons name="code" size={20} color={colors.charcoal} />
+            <Text style={styles.devSkipText}>開発者用：認証スキップ</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -533,6 +685,23 @@ const styles = StyleSheet.create({
   biometricText: {
     color: colors.orange,
     fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  devSkipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cream,
+    borderWidth: 1,
+    borderColor: colors.darkGray,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  devSkipText: {
+    color: colors.charcoal,
+    fontSize: 14,
     fontWeight: '500',
     marginLeft: 8,
   },

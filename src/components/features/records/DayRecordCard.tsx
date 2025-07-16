@@ -117,10 +117,7 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
 
   return (
     <View style={cardStyle}>
-      <View style={[
-        styles.cardContent,
-        sessionCount > 1 && styles.multiSessionContent
-      ]}>
+      <View style={styles.cardContent}>
         {/* 左側: 日付と曜日 */}
         <View style={styles.dateSection}>
           <Text style={[styles.dayNumber, { color: dayOfWeekColor }]}>
@@ -131,78 +128,106 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
           </Text>
         </View>
 
-        {/* 中央: 記録状態 */}
+        {/* 右側: 記録状態（フル幅使用） */}
         <View style={styles.statusSection}>
           {isNoOperation ? (
             <View style={styles.noOperationStatus}>
-              <Feather name="minus-circle" size={20} color={colors.darkGray} />
+              <Feather name="minus-circle" size={16} color={colors.darkGray} />
               <Text style={styles.noOperationText}>運行なし</Text>
             </View>
           ) : (
             <View style={styles.recordStatusContainer}>
-              {/* 複数セッションの場合 */}
-              {sessionCount > 1 && (
-                <View style={styles.multiSessionInfo}>
-                  <Text style={styles.sessionCountText}>{sessionCount}回運行</Text>
-                  <Text style={styles.completionText}>
-                    {completedSessions}/{sessionCount} 完了
-                  </Text>
+              {/* 点呼記録セクション */}
+              <View style={styles.tenkoSection}>
+                <Text style={styles.sectionTitle}>点呼記録</Text>
+                {sessionCount > 1 ? (
+                  <View style={styles.multiSessionContainer}>
+                    {sessions.map((session, index) => (
+                      <View key={index} style={styles.sessionRow}>
+                        <View style={styles.recordItem}>
+                          <Feather 
+                            name={session.before ? 'check-circle' : 'circle'} 
+                            size={12} 
+                            color={session.before ? colors.success : colors.darkGray} 
+                          />
+                          <Text style={[styles.recordLabel, { 
+                            color: session.before ? colors.success : colors.darkGray,
+                            fontSize: 10
+                          }]}>
+                            前
+                          </Text>
+                        </View>
+                        <View style={styles.recordItem}>
+                          <Feather 
+                            name={session.after ? 'check-circle' : 'circle'} 
+                            size={12} 
+                            color={session.after ? colors.success : colors.darkGray} 
+                          />
+                          <Text style={[styles.recordLabel, { 
+                            color: session.after ? colors.success : colors.darkGray,
+                            fontSize: 10
+                          }]}>
+                            後
+                          </Text>
+                        </View>
+                        {session.timeRange && (
+                          <Text style={styles.sessionTimeText}>{session.timeRange}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.singleSessionContainer}>
+                    <View style={styles.recordRow}>
+                      <View style={styles.recordItem}>
+                        <Feather 
+                          name={hasBeforeRecord ? 'check-circle' : 'circle'} 
+                          size={12} 
+                          color={hasBeforeRecord ? colors.success : colors.darkGray} 
+                        />
+                        <Text style={[styles.recordLabel, { 
+                          color: hasBeforeRecord ? colors.success : colors.darkGray,
+                          fontSize: 10
+                        }]}>
+                          業務前
+                        </Text>
+                      </View>
+                      <View style={styles.recordItem}>
+                        <Feather 
+                          name={hasAfterRecord ? 'check-circle' : 'circle'} 
+                          size={12} 
+                          color={hasAfterRecord ? colors.success : colors.darkGray} 
+                        />
+                        <Text style={[styles.recordLabel, { 
+                          color: hasAfterRecord ? colors.success : colors.darkGray,
+                          fontSize: 10
+                        }]}>
+                          業務後
+                        </Text>
+                      </View>
+                    </View>
+                    {sessions[0]?.timeRange && (
+                      <Text style={styles.singleSessionTimeText}>{sessions[0].timeRange}</Text>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              {/* 将来の機能プレースホルダー */}
+              <View style={styles.futureSection}>
+                <View style={styles.futureItem}>
+                  <Text style={styles.futureLabel}>日常点検</Text>
+                  <Feather name="circle" size={12} color={colors.darkGray} />
                 </View>
-              )}
-              
-              {/* 単一セッションまたは複数セッションの詳細 */}
-              <View style={styles.recordRow}>
-                <View style={styles.recordItem}>
-                  <Feather 
-                    name={hasBeforeRecord ? 'check-circle' : 'circle'} 
-                    size={16} 
-                    color={hasBeforeRecord ? colors.success : colors.darkGray} 
-                  />
-                  <Text style={[styles.recordLabel, { color: hasBeforeRecord ? colors.success : colors.darkGray }]}>
-                    業務前
-                  </Text>
-                </View>
-                <View style={styles.recordItem}>
-                  <Feather 
-                    name={hasAfterRecord ? 'check-circle' : 'circle'} 
-                    size={16} 
-                    color={hasAfterRecord ? colors.success : colors.darkGray} 
-                  />
-                  <Text style={[styles.recordLabel, { color: hasAfterRecord ? colors.success : colors.darkGray }]}>
-                    業務後
-                  </Text>
+                <View style={styles.futureItem}>
+                  <Text style={styles.futureLabel}>運行記録</Text>
+                  <Feather name="circle" size={12} color={colors.darkGray} />
                 </View>
               </View>
-              
-              {/* 複数セッションの時間範囲表示 */}
-              {sessionCount > 1 && sessions && sessions.length > 0 && (
-                <View style={styles.timeRangeContainer}>
-                  {sessions.slice(0, 2).map((session, index) => (
-                    <Text key={index} style={styles.timeRangeText}>
-                      {index + 1}: {session.timeRange || '時間未記録'}
-                    </Text>
-                  ))}
-                  {sessions.length > 2 && (
-                    <Text style={styles.moreSessionsText}>
-                      他 {sessions.length - 2} 件...
-                    </Text>
-                  )}
-                </View>
-              )}
             </View>
           )}
         </View>
-
-        {/* 右側: 完了状態アイコン */}
-        <View style={styles.completionSection}>
-          <Feather 
-            name={getRecordStatus.icon} 
-            size={24} 
-            color={getRecordStatus.color} 
-          />
-        </View>
       </View>
-
     </View>
   );
 });
@@ -231,11 +256,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   multiSessionCard: {
-    minHeight: 100,
+    minHeight: 90,
   },
   cardContent: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
   multiSessionContent: {
@@ -243,8 +268,9 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   dateSection: {
-    flex: 1,
+    minWidth: 60,
     alignItems: 'flex-start',
+    paddingRight: 8,
   },
   dayNumber: {
     fontSize: 18,
@@ -259,12 +285,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusSection: {
-    flex: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
   },
   recordStatusContainer: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    width: '100%',
   },
   recordRow: {
     flexDirection: 'row',
@@ -289,40 +316,55 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.darkGray,
   },
-  completionSection: {
-    flex: 1,
-    alignItems: 'flex-end',
-    marginRight: 40, // PDFボタンのスペースを確保
-  },
-  multiSessionInfo: {
-    alignItems: 'center',
+  tenkoSection: {
     marginBottom: 8,
   },
-  sessionCountText: {
-    fontSize: 13,
-    fontWeight: 'bold',
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.charcoal,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  completionText: {
+  futureSection: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  futureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  futureLabel: {
     fontSize: 11,
     fontWeight: '500',
-    color: colors.orange,
+    color: colors.darkGray,
   },
-  timeRangeContainer: {
-    marginTop: 8,
+  multiSessionContainer: {
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  singleSessionContainer: {
+    alignItems: 'flex-start',
+  },
+  sessionRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 16,
+    marginVertical: 2,
+    paddingHorizontal: 0,
   },
-  timeRangeText: {
-    fontSize: 10,
+  sessionTimeText: {
+    fontSize: 9,
     color: colors.darkGray,
-    marginBottom: 2,
+    marginLeft: 8,
+    minWidth: 60,
   },
-  moreSessionsText: {
-    fontSize: 10,
+  singleSessionTimeText: {
+    fontSize: 11,
     color: colors.darkGray,
-    fontStyle: 'italic',
-    marginTop: 2,
+    marginTop: 4,
+    textAlign: 'left',
   },
 });
 

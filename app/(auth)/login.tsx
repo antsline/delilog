@@ -17,12 +17,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/services/supabase';
 import { biometricAuthService } from '@/services/biometricAuthService';
 import { authSessionService } from '@/services/authSessionService';
+import Constants from 'expo-constants';
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const { user, hasProfile, loading: authLoading } = useAuth();
+  
+  // 開発環境チェック
+  const isDevelopment = Constants.expoConfig?.extra?.appEnvironment === 'development' || 
+                        process.env.EXPO_PUBLIC_APP_ENV === 'development';
 
   // 生体認証の利用可否をチェック
   React.useEffect(() => {
@@ -145,28 +150,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleTestAuth = async () => {
-    try {
-      setLoading(true);
-      
-      // 既存のテストユーザー（田中太郎）としてログイン
-      await AuthService.signInWithTest();
-      
-      console.log('*** テストログイン成功 - index.tsxで再評価');
-      
-      // 認証状態の再評価のためにindex.tsxにリダイレクト
-      router.replace('/');
-      
-    } catch (error) {
-      console.error('テスト認証エラー:', error);
-      Alert.alert(
-        '認証エラー',
-        `テスト認証に失敗しました。\nエラー: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleResetSMSLimit = async () => {
     try {
@@ -195,6 +178,129 @@ export default function LoginScreen() {
       console.error('生体認証無効化エラー:', error);
       Alert.alert('エラー', '無効化に失敗しました');
     }
+  };
+
+  // 開発環境専用：認証をスキップしてログイン
+  const handleDevSkipAuth = async () => {
+    if (!isDevelopment) {
+      Alert.alert('エラー', 'この機能は開発環境でのみ使用できます');
+      return;
+    }
+
+    Alert.alert(
+      '開発者用ログイン',
+      '認証をスキップしてログインしますか？この機能は開発環境でのみ使用できます。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { 
+          text: 'ログイン', 
+          onPress: async () => {
+            setLoading(true);
+            try {
+              // 開発環境用の固定ユーザーとしてログイン（存在しない場合は作成）
+              let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: 'dev@delilog.app',
+                password: 'delilog-dev-2024'
+              });
+              
+              // ユーザーが存在しない場合は新規作成
+              if (authError && authError.message === 'Invalid login credentials') {
+                console.log('開発者アカウントが存在しないため、新規作成します');
+                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                  email: 'dev@delilog.app',
+                  password: 'delilog-dev-2024'
+                });
+                
+                if (signUpError) {
+                  throw signUpError;
+                }
+                
+                authData = signUpData;
+              } else if (authError) {
+                throw authError;
+              }
+
+              if (authData.user) {
+                console.log('認証成功、ユーザーID:', authData.user.id);
+                
+                // プロフィールが存在するかチェック
+                const { data: profile, error: profileSelectError } = await supabase
+                  .from('users_profile')
+                  .select('*')
+                  .eq('id', authData.user.id)
+                  .single();
+
+                console.log('プロフィール検索結果:', { profile, profileSelectError });
+
+                if (profile) {
+                  // プロフィールが存在する場合、メイン画面に遷移
+                  console.log('既存プロフィール発見、メイン画面に遷移');
+                  router.replace('/');
+                } else {
+                  // プロフィールが存在しない場合、開発用プロフィールを作成
+                  console.log('プロフィールが存在しないため、開発用プロフィールを作成');
+                  const { data: newProfile, error: profileError } = await supabase
+                    .from('users_profile')
+                    .insert({
+                      id: authData.user.id,
+                      company_name: '開発テスト会社',
+                      driver_name: '開発テストドライバー',
+                      office_name: '開発テスト営業所',
+                      subscription_tier: 'basic',
+                      subscription_status: 'active',
+                    })
+                    .select()
+                    .single();
+
+                  if (profileError) {
+                    console.error('プロフィール作成エラー詳細:');
+                    console.error('- message:', profileError.message);
+                    console.error('- code:', profileError.code);
+                    console.error('- details:', profileError.details);
+                    console.error('- hint:', profileError.hint);
+                    console.error('- full error:', profileError);
+                    throw new Error(`プロフィール作成に失敗しました: ${profileError.message || profileError.code || 'Unknown error'}`);
+                  }
+
+                  console.log('プロフィール作成成功:', newProfile);
+
+                  // デフォルト車両も作成
+                  const { data: newVehicle, error: vehicleError } = await supabase
+                    .from('vehicles')
+                    .insert({
+                      user_id: authData.user.id,
+                      plate_number: '開発-1234',
+                      vehicle_name: '開発テスト車両',
+                      is_default: true,
+                      is_active: true,
+                    })
+                    .select()
+                    .single();
+
+                  if (vehicleError) {
+                    console.warn('車両作成エラー:', vehicleError);
+                  } else {
+                    console.log('車両作成成功:', newVehicle);
+                  }
+
+                  console.log('開発用アカウント設定完了、メイン画面に遷移');
+                  router.replace('/');
+                }
+              }
+            } catch (error) {
+              console.error('開発者ログインエラー詳細:');
+              console.error('- error:', error);
+              console.error('- message:', error?.message);
+              console.error('- stack:', error?.stack);
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              Alert.alert('エラー', `開発者ログインに失敗しました: ${errorMessage}`);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
 
@@ -284,18 +390,6 @@ export default function LoginScreen() {
         {__DEV__ && (
           <>
             <TouchableOpacity
-              style={[styles.authButton, styles.testButton, loading && styles.disabledButton]}
-              onPress={handleTestAuth}
-              activeOpacity={0.8}
-              disabled={loading}
-            >
-              <>
-                <FontAwesome5 name="flask" size={18} color={colors.charcoal} solid style={styles.buttonIcon} />
-                <Text style={styles.testButtonText}>テスト用ログイン（開発環境）</Text>
-              </>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
               style={[styles.authButton, styles.resetButton, loading && styles.disabledButton]}
               onPress={handleResetSMSLimit}
               activeOpacity={0.8}
@@ -321,6 +415,21 @@ export default function LoginScreen() {
               </TouchableOpacity>
             )}
           </>
+        )}
+
+        {/* 開発環境専用：認証スキップボタン */}
+        {isDevelopment && (
+          <TouchableOpacity
+            style={[styles.authButton, styles.devSkipButton, loading && styles.disabledButton]}
+            onPress={handleDevSkipAuth}
+            activeOpacity={0.8}
+            disabled={loading}
+          >
+            <>
+              <FontAwesome5 name="code" size={18} color={colors.charcoal} solid style={styles.buttonIcon} />
+              <Text style={styles.devSkipButtonText}>認証なしログイン（開発環境）</Text>
+            </>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -426,20 +535,21 @@ const styles = StyleSheet.create({
   disabledButton: {
     opacity: 0.6,
   },
-  testButton: {
-    backgroundColor: '#FFFFFF',
-    borderColor: colors.beige,
-  },
-  testButtonText: {
-    color: colors.charcoal,
-    fontSize: 14,
-    fontWeight: '600',
-  },
   resetButton: {
     backgroundColor: '#FFFFFF',
     borderColor: colors.beige,
   },
   resetButtonText: {
+    color: colors.charcoal,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  devSkipButton: {
+    backgroundColor: colors.cream,
+    borderColor: colors.darkGray,
+    borderWidth: 1,
+  },
+  devSkipButtonText: {
     color: colors.charcoal,
     fontSize: 14,
     fontWeight: '600',
