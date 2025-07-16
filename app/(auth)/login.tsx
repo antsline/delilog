@@ -15,10 +15,38 @@ import { colors } from '@/constants/colors';
 import { AuthService } from '@/services/authService';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/services/supabase';
+import { biometricAuthService } from '@/services/biometricAuthService';
+import { authSessionService } from '@/services/authSessionService';
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const { user, hasProfile, loading: authLoading } = useAuth();
+
+  // 生体認証の利用可否をチェック
+  React.useEffect(() => {
+    const checkBiometric = async () => {
+      // 生体認証が既に有効化されているかチェック
+      const canUse = await AuthService.canUseBiometric();
+      console.log('*** ログイン画面：生体認証チェック結果:', canUse);
+      
+      // 既に有効化されている場合はそのまま表示
+      if (canUse.available) {
+        console.log('*** 生体認証が有効化済み - ログインボタン表示');
+        setBiometricAvailable(true);
+        setBiometricEnabled(true);
+        return;
+      }
+      
+      // 有効化されていない場合でも、デバイスが生体認証をサポートしているかチェック
+      const deviceSupport = await biometricAuthService.isBiometricAvailable();
+      console.log('*** デバイス生体認証サポート:', deviceSupport);
+      setBiometricAvailable(deviceSupport.success);
+      setBiometricEnabled(false);
+    };
+    checkBiometric();
+  }, []);
 
   // 認証状態の変更はindex.tsxで処理されるため、ここでは監視のみ
   React.useEffect(() => {
@@ -65,6 +93,58 @@ export default function LoginScreen() {
     router.push('/phone-signin');
   };
 
+  const handleBiometricAuth = async () => {
+    try {
+      setLoading(true);
+      
+      // 既に生体認証が設定されているかチェック
+      const canUse = await AuthService.canUseBiometric();
+      
+      if (canUse.available) {
+        // 既に設定済みの場合：ログインを実行
+        const result = await AuthService.signInWithBiometric();
+        
+        if (result.success) {
+          console.log('*** 生体認証ログイン成功 - index.tsxで再評価');
+          router.replace('/');
+        } else {
+          Alert.alert(
+            '認証エラー',
+            result.message,
+            [
+              { text: 'OK' },
+              ...(result.shouldPromptOtp ? [{ 
+                text: 'SMS認証を実行', 
+                onPress: () => router.push('/phone-signin') 
+              }] : [])
+            ]
+          );
+        }
+      } else {
+        // 未設定の場合：SMS認証画面に案内
+        Alert.alert(
+          '生体認証の設定',
+          '生体認証を使用するには、まずSMS認証でログインして生体認証を有効化してください。',
+          [
+            { text: 'キャンセル', style: 'cancel' },
+            { 
+              text: 'SMS認証を実行', 
+              onPress: () => router.push('/phone-signin') 
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('生体認証エラー:', error);
+      Alert.alert(
+        '認証エラー',
+        '生体認証の処理に失敗しました。もう一度お試しください。'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleTestAuth = async () => {
     try {
       setLoading(true);
@@ -88,6 +168,35 @@ export default function LoginScreen() {
     }
   };
 
+  const handleResetSMSLimit = async () => {
+    try {
+      await authSessionService.resetSMSCount();
+      Alert.alert(
+        'リセット完了',
+        'SMS認証の上限回数がリセットされました。電話番号認証が再び利用できます。',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('SMS制限リセットエラー:', error);
+      Alert.alert('エラー', 'リセットに失敗しました');
+    }
+  };
+
+  const handleDisableBiometric = async () => {
+    try {
+      await authSessionService.disableBiometricAuth();
+      setBiometricAvailable(false);
+      Alert.alert(
+        '無効化完了',
+        '生体認証が無効化されました。新しく設定し直すことができます。',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('生体認証無効化エラー:', error);
+      Alert.alert('エラー', '無効化に失敗しました');
+    }
+  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -103,6 +212,26 @@ export default function LoginScreen() {
 
       <View style={styles.authSection}>
         <Text style={styles.authTitle}>ログイン・新規登録</Text>
+        
+        {biometricAvailable && (
+          <TouchableOpacity
+            style={[styles.authButton, styles.biometricButton, loading && styles.disabledButton]}
+            onPress={handleBiometricAuth}
+            activeOpacity={0.8}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color={colors.cream} size="small" />
+            ) : (
+              <>
+                <FontAwesome5 name="fingerprint" size={20} color={colors.cream} solid style={styles.buttonIcon} />
+                <Text style={styles.biometricButtonText}>
+                  {biometricEnabled ? '生体認証でサインイン' : '生体認証を設定'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
         
         <TouchableOpacity
           style={[styles.authButton, styles.appleButton, loading && styles.disabledButton]}
@@ -165,6 +294,32 @@ export default function LoginScreen() {
                 <Text style={styles.testButtonText}>テスト用ログイン（開発環境）</Text>
               </>
             </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.authButton, styles.resetButton, loading && styles.disabledButton]}
+              onPress={handleResetSMSLimit}
+              activeOpacity={0.8}
+              disabled={loading}
+            >
+              <>
+                <FontAwesome5 name="redo" size={18} color={colors.charcoal} solid style={styles.buttonIcon} />
+                <Text style={styles.resetButtonText}>SMS制限リセット（開発環境）</Text>
+              </>
+            </TouchableOpacity>
+            
+            {biometricAvailable && (
+              <TouchableOpacity
+                style={[styles.authButton, styles.resetButton, loading && styles.disabledButton]}
+                onPress={handleDisableBiometric}
+                activeOpacity={0.8}
+                disabled={loading}
+              >
+                <>
+                  <FontAwesome5 name="fingerprint" size={18} color={colors.charcoal} solid style={styles.buttonIcon} />
+                  <Text style={styles.resetButtonText}>生体認証無効化（開発環境）</Text>
+                </>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </View>
@@ -244,6 +399,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: colors.beige,
   },
+  biometricButton: {
+    backgroundColor: colors.orange,
+    borderColor: colors.orange,
+  },
   appleButtonText: {
     color: colors.charcoal,
     fontSize: 16,
@@ -259,6 +418,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  biometricButtonText: {
+    color: colors.cream,
+    fontSize: 16,
+    fontWeight: '600',
+  },
   disabledButton: {
     opacity: 0.6,
   },
@@ -267,6 +431,15 @@ const styles = StyleSheet.create({
     borderColor: colors.beige,
   },
   testButtonText: {
+    color: colors.charcoal,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  resetButton: {
+    backgroundColor: '#FFFFFF',
+    borderColor: colors.beige,
+  },
+  resetButtonText: {
     color: colors.charcoal,
     fontSize: 14,
     fontWeight: '600',

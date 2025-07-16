@@ -20,6 +20,14 @@ interface DayRecordCardProps {
   isSunday: boolean;
   isWeekend: boolean;
   isHoliday: boolean;
+  sessionCount: number;
+  completedSessions: number;
+  sessions: Array<{
+    before?: any;
+    after?: any;
+    isComplete: boolean;
+    timeRange?: string;
+  }>;
 }
 
 const DayRecordCard = React.memo<DayRecordCardProps>(({
@@ -34,6 +42,9 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
   isSunday,
   isWeekend,
   isHoliday,
+  sessionCount,
+  completedSessions,
+  sessions,
 }) => {
   // 記録状態を決定
   const getRecordStatus = React.useMemo(() => {
@@ -85,7 +96,9 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
     styles.dayCard,
     isToday && styles.todayCard,
     { backgroundColor: getRecordStatus.bgColor },
-  ], [isToday, getRecordStatus.bgColor]);
+    // 複数セッションの場合は高さを調整
+    sessionCount > 1 && styles.multiSessionCard,
+  ], [isToday, getRecordStatus.bgColor, sessionCount]);
 
 
   // 曜日名を取得
@@ -104,7 +117,10 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
 
   return (
     <View style={cardStyle}>
-      <View style={styles.cardContent}>
+      <View style={[
+        styles.cardContent,
+        sessionCount > 1 && styles.multiSessionContent
+      ]}>
         {/* 左側: 日付と曜日 */}
         <View style={styles.dateSection}>
           <Text style={[styles.dayNumber, { color: dayOfWeekColor }]}>
@@ -124,6 +140,17 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
             </View>
           ) : (
             <View style={styles.recordStatusContainer}>
+              {/* 複数セッションの場合 */}
+              {sessionCount > 1 && (
+                <View style={styles.multiSessionInfo}>
+                  <Text style={styles.sessionCountText}>{sessionCount}回運行</Text>
+                  <Text style={styles.completionText}>
+                    {completedSessions}/{sessionCount} 完了
+                  </Text>
+                </View>
+              )}
+              
+              {/* 単一セッションまたは複数セッションの詳細 */}
               <View style={styles.recordRow}>
                 <View style={styles.recordItem}>
                   <Feather 
@@ -146,6 +173,22 @@ const DayRecordCard = React.memo<DayRecordCardProps>(({
                   </Text>
                 </View>
               </View>
+              
+              {/* 複数セッションの時間範囲表示 */}
+              {sessionCount > 1 && sessions && sessions.length > 0 && (
+                <View style={styles.timeRangeContainer}>
+                  {sessions.slice(0, 2).map((session, index) => (
+                    <Text key={index} style={styles.timeRangeText}>
+                      {index + 1}: {session.timeRange || '時間未記録'}
+                    </Text>
+                  ))}
+                  {sessions.length > 2 && (
+                    <Text style={styles.moreSessionsText}>
+                      他 {sessions.length - 2} 件...
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -187,10 +230,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  multiSessionCard: {
+    minHeight: 100,
+  },
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  multiSessionContent: {
+    alignItems: 'flex-start',
+    paddingTop: 8,
   },
   dateSection: {
     flex: 1,
@@ -243,6 +293,36 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'flex-end',
     marginRight: 40, // PDFボタンのスペースを確保
+  },
+  multiSessionInfo: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sessionCountText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: colors.charcoal,
+    marginBottom: 2,
+  },
+  completionText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.orange,
+  },
+  timeRangeContainer: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  timeRangeText: {
+    fontSize: 10,
+    color: colors.darkGray,
+    marginBottom: 2,
+  },
+  moreSessionsText: {
+    fontSize: 10,
+    color: colors.darkGray,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
 });
 

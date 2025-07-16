@@ -50,6 +50,11 @@ export default function SettingsScreen() {
     router.push('/settings/data-management');
   };
 
+  const handleHelp = () => {
+    console.log('*** ヘルプセンターボタン押下');
+    router.push('/settings/help' as any);
+  };
+
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -207,6 +212,22 @@ export default function SettingsScreen() {
             <View style={styles.menuContent}>
               <Text style={styles.menuTitle}>データ管理</Text>
               <Text style={styles.menuSubtitle}>エクスポート・削除・バックアップ</Text>
+            </View>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+
+          {/* ヘルプセンター */}
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={handleHelp}
+            activeOpacity={0.7}
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+            delayPressIn={0}
+            delayPressOut={0}
+          >
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>ヘルプセンター</Text>
+              <Text style={styles.menuSubtitle}>使い方・よくある質問・用語解説</Text>
             </View>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>

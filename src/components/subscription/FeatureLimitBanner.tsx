@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscriptionStatus } from '@/store/subscriptionStore';
 import { colors } from '@/constants/colors';
+import { spacing } from '@/constants/spacing';
 
 interface FeatureLimitBannerProps {
   feature: string;
@@ -243,7 +244,8 @@ export function showUpgradePrompt({
 
 const styles = StyleSheet.create({
   banner: {
-    margin: 16,
+    marginBottom: spacing.card,
+    marginHorizontal: 0,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
@@ -326,7 +328,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.orange + '30',
     padding: 16,
-    margin: 16,
+    marginBottom: spacing.card,
+    marginHorizontal: 0,
     gap: 16,
   },
   premiumIcon: {

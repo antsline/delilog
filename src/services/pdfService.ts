@@ -1,6 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { TenkoRecord, UserProfile, Vehicle, NoOperationDay } from '@/types/database';
+import { TenkoRecord, UserProfile, Vehicle, NoOperationDay, WorkSession, WorkSessionDetail } from '@/types/database';
 import { TenkoService } from './tenkoService';
 
 interface PDFGenerationData {
@@ -14,9 +14,37 @@ interface PDFGenerationData {
 
 interface WeeklyPDFData extends PDFGenerationData {
   weekLabel: string;
+  selectedDate?: string; // YYYY-MM-DD形式の選択された日付
 }
 
 export class PDFService {
+  /**
+   * 指定日が含まれる週の日付範囲を計算（日〜土）
+   */
+  private static getWeekDateRange(baseDate: Date): { start: Date; end: Date; dates: Date[] } {
+    const start = new Date(baseDate);
+    const end = new Date(baseDate);
+    
+    // 日曜日を週の始まりとして計算
+    const dayOfWeek = start.getDay(); // 0=日曜日, 1=月曜日, ..., 6=土曜日
+    
+    // 週の開始日（日曜日）
+    start.setDate(start.getDate() - dayOfWeek);
+    
+    // 週の終了日（土曜日）
+    end.setDate(start.getDate() + 6);
+    
+    // 週の全日付を生成
+    const dates: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      dates.push(date);
+    }
+    
+    return { start, end, dates };
+  }
+
   /**
    * 指定月の点呼記録PDFを生成
    */
@@ -37,7 +65,7 @@ export class PDFService {
    * 週単位の点呼記録PDFを生成
    */
   static async generateWeeklyTenkoPDF(data: WeeklyPDFData): Promise<string> {
-    const htmlContent = this.generateHTMLContent(data);
+    const htmlContent = this.generateWeeklyHTMLContent(data);
     
     const { uri } = await Print.printToFileAsync({
       html: htmlContent,
@@ -66,32 +94,37 @@ export class PDFService {
   }
 
   /**
-   * HTMLコンテンツを生成
+   * 週次PDF用のHTMLコンテンツを生成
    */
-  private static generateHTMLContent(data: PDFGenerationData): string {
-    const { userProfile, records, vehicles, noOperationDays, year, month } = data;
+  private static generateWeeklyHTMLContent(data: WeeklyPDFData): string {
+    const { userProfile, records, vehicles, noOperationDays, year, month, selectedDate } = data;
     
-    // 記録データを日付と車両でグループ化
-    const recordsMap = new Map<string, Map<string, { before?: TenkoRecord; after?: TenkoRecord }>>();
+    // 選択された日付または今日の日付を基準日として使用
+    const baseDate = selectedDate ? new Date(selectedDate) : new Date();
+    const { start, end, dates } = this.getWeekDateRange(baseDate);
+    
+    console.log('*** PDFService: 週次PDF生成 - 週の範囲:', {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+      dates: dates.map(d => d.toISOString().split('T')[0])
+    });
+    
+    // 業務セッションベースでグループ化
+    const sessionMap = new Map<string, { before?: TenkoRecord; after?: TenkoRecord; workDate: string }>();
     
     records.forEach(record => {
-      const dateKey = record.date;
-      const vehicleKey = record.vehicle_id;
+      const sessionKey = record.work_session_id || `${record.date}_${record.vehicle_id}`;
+      const workDate = record.work_date || record.date;
       
-      if (!recordsMap.has(dateKey)) {
-        recordsMap.set(dateKey, new Map());
+      if (!sessionMap.has(sessionKey)) {
+        sessionMap.set(sessionKey, { workDate });
       }
       
-      const dayRecords = recordsMap.get(dateKey)!;
-      if (!dayRecords.has(vehicleKey)) {
-        dayRecords.set(vehicleKey, {});
-      }
-      
-      const vehicleRecords = dayRecords.get(vehicleKey)!;
+      const sessionRecords = sessionMap.get(sessionKey)!;
       if (record.type === 'before') {
-        vehicleRecords.before = record;
+        sessionRecords.before = record;
       } else {
-        vehicleRecords.after = record;
+        sessionRecords.after = record;
       }
     });
 
@@ -101,20 +134,89 @@ export class PDFService {
       noOperationMap.add(day.date);
     });
 
+    // 週の各日付に対して車両とセッションの組み合わせを収集
+    const vehicleSessionPairs: Array<{
+      vehicle: Vehicle;
+      sessionData: { before?: TenkoRecord; after?: TenkoRecord; sessionKey: string; sessionIndex: number };
+      dateKey: string;
+    }> = [];
+    
+    // 週の各日付について処理
+    dates.forEach(date => {
+      const dateKey = date.toISOString().split('T')[0];
+      
+      // 各車両について
+      vehicles.forEach(vehicle => {
+        const vehicleSessions: Array<{ before?: TenkoRecord; after?: TenkoRecord; sessionKey: string }> = [];
+        
+        // この日付のセッションを検索
+        sessionMap.forEach((sessionData, sessionKey) => {
+          if (sessionData.workDate === dateKey) {
+            const record = sessionData.before || sessionData.after;
+            if (record && record.vehicle_id === vehicle.id) {
+              vehicleSessions.push({
+                before: sessionData.before,
+                after: sessionData.after,
+                sessionKey
+              });
+            }
+          }
+        });
+        
+        if (vehicleSessions.length > 0) {
+          // 時刻順でソート
+          const sortedSessions = vehicleSessions.sort((a, b) => {
+            const aTime = a.before?.created_at || a.after?.created_at || '';
+            const bTime = b.before?.created_at || b.after?.created_at || '';
+            return aTime.localeCompare(bTime);
+          });
+          
+          sortedSessions.forEach((sessionData, index) => {
+            vehicleSessionPairs.push({
+              vehicle,
+              sessionData: {
+                ...sessionData,
+                sessionIndex: sortedSessions.length > 1 ? index + 1 : 0
+              },
+              dateKey
+            });
+          });
+        } else {
+          // セッションがない場合は運行なしとして扱う
+          // 明示的に運行なしと設定された日 or 記録がない日は両方とも「運行なし」として表示
+          vehicleSessionPairs.push({
+            vehicle,
+            sessionData: { 
+              sessionKey: 'no-operation', 
+              sessionIndex: 0 
+            },
+            dateKey
+          });
+        }
+      });
+    });
+    
+    // 実際の業務セクション数に基づいて行数を動的に調整
+    const actualSectionCount = vehicleSessionPairs.length;
+    const dynamicMaxRows = Math.min(Math.max(actualSectionCount, 7), 15);
+    
+    console.log('*** PDFService: 週次PDF - 業務セクション数:', actualSectionCount, '動的行数:', dynamicMaxRows);
+    
+    // 行数に応じた行の高さを計算
+    const adjustedRowHeight = this.calculateRowHeight(dynamicMaxRows);
+    
+    // 最大行数に収まるように調整
+    const limitedPairs = vehicleSessionPairs.slice(0, dynamicMaxRows);
+    
     // テーブル行を生成
     let tableRows = '';
-    const maxRows = 7; // HTMLテンプレートの行数に合わせる
-    
-    // 車両リストを取得（最大7台）
-    const vehicleList = vehicles.slice(0, maxRows);
-    
-    for (let i = 0; i < maxRows; i++) {
-      const vehicle = vehicleList[i];
-      tableRows += this.generateTableRow(vehicle, recordsMap, noOperationMap, i + 1);
+    for (let i = 0; i < dynamicMaxRows; i++) {
+      const pair = limitedPairs[i];
+      tableRows += this.generateTableRowForSession(pair, noOperationMap, i + 1);
     }
-
-    // HTMLテンプレートを読み込んで置換
-    const htmlTemplate = this.getHTMLTemplate();
+    
+    // 調整されたHTMLテンプレートを取得
+    const htmlTemplate = this.getAdjustedHTMLTemplate(dynamicMaxRows, adjustedRowHeight);
     
     return htmlTemplate
       .replace('{{YEAR}}', year.toString())
@@ -124,64 +226,215 @@ export class PDFService {
   }
 
   /**
-   * テーブル行を生成
+   * HTMLコンテンツを生成（業務セッション対応版）
    */
-  private static generateTableRow(
-    vehicle: Vehicle | undefined, 
-    recordsMap: Map<string, Map<string, { before?: TenkoRecord; after?: TenkoRecord }>>,
+  private static generateHTMLContent(data: PDFGenerationData): string {
+    const { userProfile, records, vehicles, noOperationDays, year, month } = data;
+    
+    // 業務セッションベースでグループ化
+    const sessionMap = new Map<string, { before?: TenkoRecord; after?: TenkoRecord; workDate: string }>();
+    
+    records.forEach(record => {
+      // work_session_idがある場合はセッションベース、ない場合は従来の日付ベース
+      const sessionKey = record.work_session_id || `${record.date}_${record.vehicle_id}`;
+      const workDate = record.work_date || record.date;
+      
+      if (!sessionMap.has(sessionKey)) {
+        sessionMap.set(sessionKey, { workDate });
+      }
+      
+      const sessionRecords = sessionMap.get(sessionKey)!;
+      if (record.type === 'before') {
+        sessionRecords.before = record;
+      } else {
+        sessionRecords.after = record;
+      }
+    });
+
+    // セッションを日付と車両でグループ化（表示用）- 複数セッション対応
+    const recordsMap = new Map<string, Map<string, Array<{ before?: TenkoRecord; after?: TenkoRecord; sessionKey: string }>>>();
+    
+    sessionMap.forEach((sessionData, sessionKey) => {
+      const { before, after, workDate } = sessionData;
+      const record = before || after;
+      if (!record) return;
+      
+      const dateKey = workDate; // 業務基準日を使用
+      const vehicleKey = record.vehicle_id;
+      
+      if (!recordsMap.has(dateKey)) {
+        recordsMap.set(dateKey, new Map());
+      }
+      
+      const dayRecords = recordsMap.get(dateKey)!;
+      if (!dayRecords.has(vehicleKey)) {
+        dayRecords.set(vehicleKey, []);
+      }
+      
+      const vehicleRecords = dayRecords.get(vehicleKey)!;
+      vehicleRecords.push({
+        before,
+        after,
+        sessionKey
+      });
+    });
+
+    // 運行なし日をマップ化
+    const noOperationMap = new Set<string>();
+    noOperationDays.forEach(day => {
+      noOperationMap.add(day.date);
+    });
+
+    // テーブル行を生成（複数セッション対応）
+    let tableRows = '';
+    const maxRows = 12; // 行の高さを縮小して増やした行数
+    
+    // 車両・セッションの組み合わせを収集
+    const vehicleSessionPairs: Array<{
+      vehicle: Vehicle;
+      sessionData: { before?: TenkoRecord; after?: TenkoRecord; sessionKey: string; sessionIndex: number };
+      dateKey: string;
+    }> = [];
+    
+    // 各車両について、すべてのセッションを収集
+    vehicles.forEach(vehicle => {
+      let hasAnySession = false;
+      
+      recordsMap.forEach((dayRecords, dateKey) => {
+        const vehicleRecords = dayRecords.get(vehicle.id);
+        if (vehicleRecords) {
+          // 同日複数セッションの場合、時刻順でソート
+          const sortedSessions = vehicleRecords.sort((a, b) => {
+            const aTime = a.before?.created_at || a.after?.created_at || '';
+            const bTime = b.before?.created_at || b.after?.created_at || '';
+            return aTime.localeCompare(bTime);
+          });
+          
+          sortedSessions.forEach((sessionData, index) => {
+            vehicleSessionPairs.push({
+              vehicle,
+              sessionData: {
+                ...sessionData,
+                sessionIndex: vehicleRecords.length > 1 ? index + 1 : 0 // 複数セッションの場合のみ番号付け
+              },
+              dateKey
+            });
+            hasAnySession = true;
+          });
+        }
+      });
+      
+      // 運行なし日の判定
+      let hasNoOperationDay = false;
+      noOperationMap.forEach(date => {
+        // この車両の運行なし日があるかチェック
+        if (!recordsMap.has(date) || !recordsMap.get(date)?.has(vehicle.id)) {
+          hasNoOperationDay = true;
+        }
+      });
+      
+      // セッションがない車両も1行追加（運行なし表示用）
+      if (!hasAnySession || hasNoOperationDay) {
+        vehicleSessionPairs.push({
+          vehicle,
+          sessionData: { sessionKey: 'no-session', sessionIndex: 0 },
+          dateKey: ''
+        });
+      }
+    });
+    
+    // 実際の業務セクション数に基づいて行数を動的に調整
+    const actualSectionCount = vehicleSessionPairs.length;
+    const dynamicMaxRows = Math.min(Math.max(actualSectionCount, 7), 15); // 最小7行、最大15行
+    
+    console.log(`*** PDFService: 業務セクション数: ${actualSectionCount}, 動的行数: ${dynamicMaxRows}`);
+    
+    // 行数に応じた行の高さを計算
+    const adjustedRowHeight = this.calculateRowHeight(dynamicMaxRows);
+    
+    // 最大行数に収まるように調整
+    const limitedPairs = vehicleSessionPairs.slice(0, dynamicMaxRows);
+    
+    for (let i = 0; i < dynamicMaxRows; i++) {
+      const pair = limitedPairs[i];
+      tableRows += this.generateTableRowForSession(pair, noOperationMap, i + 1);
+    }
+    
+    // 調整されたHTMLテンプレートを取得
+    const htmlTemplate = this.getAdjustedHTMLTemplate(dynamicMaxRows, adjustedRowHeight);
+    
+    return htmlTemplate
+      .replace('{{YEAR}}', year.toString())
+      .replace('{{COMPANY_NAME}}', userProfile.company_name || '')
+      .replace('{{DRIVER_NAME}}', userProfile.driver_name || '')
+      .replace('{{TABLE_ROWS}}', tableRows);
+  }
+
+  /**
+   * テーブル行を生成（セッション対応版）
+   */
+  private static generateTableRowForSession(
+    pair: {
+      vehicle: Vehicle;
+      sessionData: { before?: TenkoRecord; after?: TenkoRecord; sessionKey: string; sessionIndex: number };
+      dateKey: string;
+    } | undefined,
     noOperationMap: Set<string>,
     rowNumber: number
   ): string {
-    let vehicleNumber = vehicle?.plate_number || '';
+    if (!pair) {
+      // 空の行を生成
+      return `
+        <tr>
+          <td class="vehicle-number" style="border: 1px solid #000; padding: 0.5mm; text-align: center;">
+            -
+          </td>
+          ${this.generateRecordCells(undefined, 'before', true, undefined)}
+          ${this.generateRecordCells(undefined, 'after', true, undefined)}
+        </tr>
+      `;
+    }
+
+    const { vehicle, sessionData, dateKey } = pair;
+    let vehicleNumber = vehicle.plate_number || '';
     
     // 最後の4桁のみ取得
     if (vehicleNumber.length > 4) {
       vehicleNumber = vehicleNumber.slice(-4);
     }
     
-    // 最新の記録を取得（車両が存在する場合）
-    let beforeRecord: TenkoRecord | undefined;
-    let afterRecord: TenkoRecord | undefined;
-    let hasAnyRecord = false;
-    let isNoOperationDay = false;
+    // 複数セッションがある場合は番号を付加
+    const sessionNumber = sessionData.sessionIndex > 0 ? sessionData.sessionIndex.toString() : '';
+    const displayVehicleNumber = sessionNumber ? `${vehicleNumber}(${sessionNumber})` : vehicleNumber;
     
-    if (vehicle) {
-      // その車両の最新記録を探す
-      for (const [date, dayRecords] of recordsMap) {
-        const vehicleRecords = dayRecords.get(vehicle.id);
-        if (vehicleRecords?.before) {
-          beforeRecord = vehicleRecords.before;
-          hasAnyRecord = true;
-        }
-        if (vehicleRecords?.after) {
-          afterRecord = vehicleRecords.after;
-          hasAnyRecord = true;
-        }
-        // 運行なし日の判定
-        if (noOperationMap.has(date)) {
-          isNoOperationDay = true;
-        }
-      }
-    }
+    // 運行なし日の判定
+    const isNoOperationDay = dateKey ? noOperationMap.has(dateKey) : false;
+    
+    // セッションデータがない場合の判定
+    const isNoDataDay = (sessionData.sessionKey === 'no-session' || sessionData.sessionKey === 'no-operation') && !sessionData.before && !sessionData.after;
 
-    // データがない場合（記録なし & 運行なし日でもない）の判定
-    const isNoDataDay = !hasAnyRecord && !isNoOperationDay;
+    // 表示用の車両番号
+    let displayText = displayVehicleNumber;
+    if (sessionData.sessionKey === 'no-operation') {
+      displayText = '運行なし';
+    }
 
     return `
       <tr>
         <td class="vehicle-number" style="border: 1px solid #000; padding: 0.5mm; text-align: center;">
-          ${isNoDataDay ? '運行なし' : vehicleNumber}
+          ${displayText}
         </td>
-        ${this.generateRecordCells(beforeRecord, 'before', isNoDataDay)}
-        ${this.generateRecordCells(afterRecord, 'after', isNoDataDay)}
+        ${this.generateRecordCells(sessionData.before, 'before', isNoDataDay, dateKey)}
+        ${this.generateRecordCells(sessionData.after, 'after', isNoDataDay, dateKey)}
       </tr>
     `;
   }
 
+
   /**
    * 記録セルを生成
    */
-  private static generateRecordCells(record: TenkoRecord | undefined, type: 'before' | 'after', isNoDataDay: boolean = false): string {
+  private static generateRecordCells(record: TenkoRecord | undefined, type: 'before' | 'after', isNoDataDay: boolean = false, dateKey?: string): string {
     if (!record) {
       // 空の記録セル
       const inspectionCell = type === 'before' 
@@ -190,10 +443,10 @@ export class PDFService {
       
       // データがない日（運行なし）の場合は「対面 本人」「アルコール表示」を非表示、日付のみ表示
       if (isNoDataDay) {
-        // 日付を取得（週の範囲から適切な日付を推定）
-        const today = new Date();
-        const month = today.getMonth() + 1;
-        const day = today.getDate();
+        // 日付を取得（渡された日付またはtoday）
+        const date = dateKey ? new Date(dateKey) : new Date();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
         
         return `
           <td class="date-time" style="border: 1px solid #000; padding: 0.5mm; text-align: center;">
@@ -214,7 +467,7 @@ export class PDFService {
           <div class="fixed-value">本人</div>
         </td>
         <td class="alcohol" style="border: 1px solid #000; padding: 0.5mm; text-align: center;">
-          <div class="fixed-value">使用</div>
+          <div class="fixed-value">検知器使用</div>
           <div class="fixed-value">0.00mg/L</div>
         </td>
         <td class="health" style="border: 1px solid #000; padding: 0.5mm; text-align: center;"></td>
@@ -249,7 +502,7 @@ export class PDFService {
         <div class="fixed-value">本人</div>
       </td>
       <td class="alcohol" style="border: 1px solid #000; padding: 0.5mm; text-align: center;">
-        <div class="fixed-value">使用</div>
+        <div class="fixed-value">${record.alcohol_detector_used ? '検知器使用' : '検知器未使用'}</div>
         <div class="fixed-value">${(record.alcohol_level || 0).toFixed(2)}mg/L</div>
       </td>
       <td class="health" style="border: 1px solid #000; padding: 0.5mm; text-align: center;">${healthStatus}</td>
@@ -279,6 +532,37 @@ export class PDFService {
       case 'ng': return '異常';
       default: return '';
     }
+  }
+
+  /**
+   * 行数に応じた行の高さを計算（テーブル全体の高さは固定）
+   */
+  private static calculateRowHeight(rowCount: number): number {
+    // A4横向き用紙にきれいに収まるテーブル高さ（mm）
+    // A4横向き: 210mm高さ - マージン(20mm) - ヘッダー(25mm) - フッター(10mm) = 約155mm利用可能
+    // テーブルヘッダー部分(14mm)を除いた本体部分の高さ
+    const fixedTableHeight = 100; // 100mm
+    
+    // 行数に応じて高さを均等に分割
+    const calculatedHeight = fixedTableHeight / rowCount;
+    
+    // 最小高さを7mmに制限（読みやすさのため）
+    return Math.max(Math.floor(calculatedHeight), 7);
+  }
+
+  /**
+   * 行数と高さに応じて調整されたHTMLテンプレートを取得
+   */
+  private static getAdjustedHTMLTemplate(maxRows: number, rowHeight: number): string {
+    const baseTemplate = this.getHTMLTemplate();
+    
+    // 行の高さを調整
+    const adjustedTemplate = baseTemplate.replace(
+      'height: 9mm;',
+      `height: ${rowHeight}mm;`
+    );
+    
+    return adjustedTemplate;
   }
 
   /**
@@ -392,12 +676,12 @@ export class PDFService {
         .main-table th,
         .main-table td {
             border: 1px solid #000 !important;
-            padding: 0.5mm;
+            padding: 0.3mm;
             text-align: center;
             vertical-align: middle;
-            font-size: 8pt;
-            line-height: 1.4;
-            height: 16mm;
+            font-size: 7pt;
+            line-height: 1.2;
+            height: 9mm;
             overflow: hidden;
         }
         
@@ -405,6 +689,8 @@ export class PDFService {
             background-color: #f0f0f0;
             font-weight: bold;
             height: 6mm;
+            font-size: 8pt;
+            line-height: 1.3;
         }
         
         .section-header {
@@ -419,7 +705,8 @@ export class PDFService {
             min-width: 21mm !important;
             max-width: 21mm !important;
             background-color: white;
-            font-size: 8pt;
+            font-size: 7pt;
+            font-weight: bold;
         }
         
         .pre-work {
@@ -431,19 +718,19 @@ export class PDFService {
         }
         
         .fixed-value {
-            font-size: 7pt;
+            font-size: 6pt;
             color: #333;
-            line-height: 1.5;
+            line-height: 1.2;
         }
         
         .date-input {
-            font-size: 7pt;
-            line-height: 1.5;
+            font-size: 6pt;
+            line-height: 1.2;
         }
         
         .time-input {
-            font-size: 7pt;
-            line-height: 1.5;
+            font-size: 6pt;
+            line-height: 1.2;
         }
         
         .footer {

@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
 import { tenkoBeforeSchema, type TenkoBeforeFormData } from '@/types/tenkoValidation';
 import VoiceInputButton from '@/components/ui/VoiceInputButton';
+import HelpButton from '@/components/common/HelpButton';
 import { TenkoService } from '@/services/tenkoService';
 import { useOfflineStore, useNetworkStatus, useIsOffline } from '@/store/offlineStore';
 import { 
@@ -245,8 +246,20 @@ export default function TenkoBeforeScreen() {
     minute: '2-digit'
   });
 
-  // 既に記録済みかチェック
-  if (todayStatus.beforeCompleted) {
+  // 既に記録済みかチェック（次の業務開始ではない場合）
+  const isBeforeCompleted = todayStatus.beforeCompleted && !todayStatus.canStartNewSession;
+  
+  console.log('*** tenko-before: アクセス可能性チェック:', {
+    beforeCompleted: todayStatus.beforeCompleted,
+    afterCompleted: todayStatus.afterCompleted,
+    canStartNewSession: todayStatus.canStartNewSession,
+    isBeforeCompleted,
+    hasActiveSession: !!todayStatus.activeSession,
+    hasCompletedSession: !!todayStatus.latestCompletedSession,
+    timestamp: new Date().toISOString()
+  });
+  
+  if (isBeforeCompleted) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" backgroundColor={colors.cream} />
@@ -293,16 +306,36 @@ export default function TenkoBeforeScreen() {
           >
             <Text style={styles.backIconText}>←</Text>
           </TouchableOpacity>
-          <Text 
-            style={styles.title}
-            {...createAccessibleProps(
-              '業務前点呼記録画面',
-              '業務開始前の安全確認記録を入力します',
-              AccessibilityRoles.HEADER
-            )}
-          >
-            業務前点呼
-          </Text>
+          <View style={styles.headerCenter}>
+            <Text 
+              style={styles.title}
+              {...createAccessibleProps(
+                '業務前点呼記録画面',
+                '業務開始前の安全確認記録を入力します',
+                AccessibilityRoles.HEADER
+              )}
+            >
+              業務前点呼
+            </Text>
+          </View>
+          <HelpButton
+            type="specific"
+            helpContent={{
+              title: '業務前点呼の記録方法',
+              description: '業務開始前に実施する点呼記録の入力画面です。運転者の健康状態、アルコール検知、車両点検結果などを記録します。',
+              steps: [
+                '運転者名と車両を選択',
+                '健康状態を「良好」「不調」から選択',
+                'アルコール検知器の数値を入力（0.00mg/L等）',
+                '睡眠不足の有無を選択',
+                '車両点検で異常がないか確認',
+                '必要に応じて特記事項を入力',
+                '「業務前点呼を記録」ボタンで保存'
+              ]
+            }}
+            variant="icon"
+            size="medium"
+          />
         </View>
 
         {/* オフライン状態表示 */}
@@ -324,6 +357,7 @@ export default function TenkoBeforeScreen() {
           <View style={styles.dateTimeContainer}>
             <Text style={styles.dateTimeText}>{dateString} {timeString}</Text>
           </View>
+          
         </View>
 
         {/* 車両選択 */}
@@ -746,8 +780,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 20,
     paddingBottom: 24,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   backIcon: {
     padding: 8,

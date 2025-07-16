@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Sty
 import { TenkoRecord, NoOperationDay } from '@/types/database';
 import { generateDayList, formatDateDisplay } from '@/utils/dateUtils';
 import { NoOperationService } from '@/services/noOperationService';
+import HelpButton from '@/components/common/HelpButton';
 import { useAuthStore } from '@/store/authStore';
 import { Feather } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
@@ -34,6 +35,14 @@ interface DayRecord {
   isSunday: boolean;
   isWeekend: boolean;
   isHoliday: boolean;
+  sessionCount: number;
+  completedSessions: number;
+  sessions: Array<{
+    before?: TenkoRecord;
+    after?: TenkoRecord;
+    isComplete: boolean;
+    timeRange?: string;
+  }>;
 }
 
 function RecordListView({
@@ -110,8 +119,6 @@ function RecordListView({
     
     return dayList.map(day => {
       const dayRecords = recordsMap.get(day.dateStr) || [];
-      const beforeRecord = dayRecords.find(r => r.type === 'before');
-      const afterRecord = dayRecords.find(r => r.type === 'after');
       const hasAnyRecord = dayRecords.length > 0;
       const isExplicitNoOperation = noOperationMap.has(day.dateStr);
       
@@ -120,21 +127,77 @@ function RecordListView({
       const isPastDate = dayDate < yesterday;
       
       // 昨日以前で記録がない日は運行なしと判定
-      // 今日を含む未来の日付は記録がなくても運行なしにしない
       const isNoOperation = isPastDate ? (!hasAnyRecord || isExplicitNoOperation) : isExplicitNoOperation;
+      
+      // セッション別にグループ化
+      const sessionMap = new Map<string, { before?: TenkoRecord; after?: TenkoRecord }>();
+      
+      dayRecords.forEach(record => {
+        const sessionKey = record.work_session_id || `${record.date}_${record.vehicle_id}_${record.type}`;
+        if (!sessionMap.has(sessionKey)) {
+          sessionMap.set(sessionKey, {});
+        }
+        const session = sessionMap.get(sessionKey)!;
+        if (record.type === 'before') {
+          session.before = record;
+        } else {
+          session.after = record;
+        }
+      });
+      
+      // セッション情報を作成
+      const sessions = Array.from(sessionMap.values()).map(session => {
+        const isComplete = !!session.before && !!session.after;
+        let timeRange = '';
+        
+        if (session.before && session.after) {
+          const beforeTime = new Date(session.before.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+          const afterTime = new Date(session.after.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+          timeRange = `${beforeTime}〜${afterTime}`;
+        } else if (session.before) {
+          const beforeTime = new Date(session.before.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+          timeRange = `${beforeTime}〜`;
+        } else if (session.after) {
+          const afterTime = new Date(session.after.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+          timeRange = `〜${afterTime}`;
+        }
+        
+        return {
+          before: session.before,
+          after: session.after,
+          isComplete,
+          timeRange,
+        };
+      });
+      
+      // 時間順でソート
+      sessions.sort((a, b) => {
+        const aTime = a.before?.created_at || a.after?.created_at || '';
+        const bTime = b.before?.created_at || b.after?.created_at || '';
+        return aTime.localeCompare(bTime);
+      });
+      
+      const sessionCount = sessions.length;
+      const completedSessions = sessions.filter(s => s.isComplete).length;
+      const hasBeforeRecord = sessions.some(s => s.before);
+      const hasAfterRecord = sessions.some(s => s.after);
+      const isComplete = sessionCount > 0 && completedSessions === sessionCount;
       
       return {
         date: day.dateStr,
         dayOfMonth: day.dayOfMonth,
         isToday: day.isToday,
-        hasBeforeRecord: !!beforeRecord,
-        hasAfterRecord: !!afterRecord,
-        isComplete: !!beforeRecord && !!afterRecord,
+        hasBeforeRecord,
+        hasAfterRecord,
+        isComplete,
         isNoOperation,
         isSaturday: day.isSaturday,
         isSunday: day.isSunday,
         isWeekend: day.isWeekend,
         isHoliday: day.isHoliday,
+        sessionCount,
+        completedSessions,
+        sessions,
       };
     });
     // 日付の昇順でソート（1日から順番に）
@@ -235,6 +298,9 @@ function RecordListView({
             isSunday={dayRecord.isSunday}
             isWeekend={dayRecord.isWeekend}
             isHoliday={dayRecord.isHoliday}
+            sessionCount={dayRecord.sessionCount}
+            completedSessions={dayRecord.completedSessions}
+            sessions={dayRecord.sessions}
           />
           
           {/* PDF出力ボタン */}
@@ -261,14 +327,37 @@ function RecordListView({
         paddingBottom: 32,
         backgroundColor: colors.cream,
       }}>
-        <Text style={{ 
-          fontSize: 28, 
-          fontWeight: 'bold', 
-          color: colors.charcoal,
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           marginBottom: 8,
         }}>
-          記録一覧
-        </Text>
+          <Text style={{ 
+            fontSize: 28, 
+            fontWeight: 'bold', 
+            color: colors.charcoal,
+          }}>
+            記録一覧
+          </Text>
+          <HelpButton
+            type="specific"
+            helpContent={{
+              title: '記録一覧の見方',
+              description: '月別の点呼記録の状況を確認できます。各日付のカードをタップして詳細を確認したり、PDFを生成できます。',
+              steps: [
+                '左右の矢印で月を切り替え',
+                '各日付のカードで記録状況を確認',
+                '✓: 完了、△: 部分記録、○: 未記録、−: 運行なし',
+                'カードをタップして詳細確認',
+                'PDFボタンで週次レポート生成',
+                '長押しで運行なし切り替え（過去日のみ）'
+              ]
+            }}
+            variant="icon"
+            size="medium"
+          />
+        </View>
       </View>
 
       {/* 年月ナビゲーション */}

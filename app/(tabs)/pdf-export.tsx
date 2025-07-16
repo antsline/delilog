@@ -145,6 +145,7 @@ export default function PDFExportScreen() {
         year: selectedDate.getFullYear(),
         month: selectedDate.getMonth() + 1,
         weekLabel: `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日を含む週（${startDate.toLocaleDateString('ja-JP')}〜${endDate.toLocaleDateString('ja-JP')}）`,
+        selectedDate: selectedDate.toISOString().split('T')[0], // YYYY-MM-DD形式で渡す
       });
       
       // 生成完了、共有開始

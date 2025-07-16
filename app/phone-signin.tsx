@@ -34,10 +34,12 @@ export default function PhoneSignInScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [smsRemainingCount, setSmsRemainingCount] = useState<number | null>(null);
 
-  // 初期化時に生体認証の確認
+  // 初期化時に生体認証とSMS制限の確認
   React.useEffect(() => {
     checkBiometricAvailability();
+    checkSMSLimit();
   }, []);
 
   const checkBiometricAvailability = async () => {
@@ -46,6 +48,11 @@ export default function PhoneSignInScreen() {
       const biometricResult = await biometricAuthService.isBiometricAvailable();
       setBiometricAvailable(biometricResult.success);
     }
+  };
+
+  const checkSMSLimit = async () => {
+    const smsCheck = await authSessionService.canUseSMSAuth();
+    setSmsRemainingCount(smsCheck.remainingCount);
   };
 
   // 生体認証でログイン
@@ -104,8 +111,22 @@ export default function PhoneSignInScreen() {
       return;
     }
 
+    // SMS認証の回数制限チェック
+    const smsCheck = await authSessionService.canUseSMSAuth();
+    if (!smsCheck.allowed) {
+      Alert.alert(
+        'SMS認証制限',
+        smsCheck.message,
+        [
+          { text: 'OK' },
+          { text: 'ログイン画面に戻る', onPress: () => router.back() }
+        ]
+      );
+      return;
+    }
+
     setIsLoading(true);
-    Logger.info('認証コード送信開始', phoneNumber);
+    Logger.info('認証コード送信開始', `${phoneNumber} (残り${smsCheck.remainingCount}回)`);
 
     try {
       const result = await phoneAuthService.sendVerificationCode(phoneNumber);
@@ -154,9 +175,22 @@ export default function PhoneSignInScreen() {
               { 
                 text: '有効にする', 
                 onPress: async () => {
-                  const enableResult = await authSessionService.enableBiometricAuth();
-                  if (enableResult.success) {
-                    Alert.alert('設定完了', enableResult.message);
+                  console.log('*** 生体認証有効化ボタンが押されました');
+                  try {
+                    const enableResult = await authSessionService.enableBiometricAuth();
+                    console.log('*** 生体認証有効化結果:', enableResult);
+                    Alert.alert(
+                      enableResult.success ? '設定完了' : 'エラー', 
+                      enableResult.message,
+                      [{ text: 'OK' }]
+                    );
+                  } catch (error) {
+                    console.error('*** 生体認証有効化でエラー:', error);
+                    Alert.alert(
+                      'エラー', 
+                      `生体認証の設定に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                      [{ text: 'OK' }]
+                    );
                   }
                 }
               }
@@ -219,56 +253,62 @@ export default function PhoneSignInScreen() {
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      automaticallyAdjustKeyboardInsets={true}
+      scrollEventThrottle={16}
     >
-      <View style={styles.iconContainer}>
-        <Ionicons name="phone-portrait" size={80} color={colors.orange} />
-      </View>
+      <View style={styles.topSection}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="phone-portrait" size={80} color={colors.orange} />
+        </View>
 
-      <Text style={styles.title}>電話番号でサインイン</Text>
-      <Text style={styles.subtitle}>
-        携帯電話番号を入力してください。{'\n'}
-        SMS認証コードを送信します。
-      </Text>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>携帯電話番号</Text>
-        <TextInput
-          style={styles.input}
-          value={phoneNumber}
-          onChangeText={(text) => setPhoneNumber(formatPhoneInput(text))}
-          placeholder="090-1234-5678"
-          keyboardType="numeric"
-          maxLength={13}
-          autoFocus
-        />
-        <Text style={styles.inputHelper}>
-          日本の携帯電話番号を入力してください
+        <Text style={styles.title}>電話番号でサインイン</Text>
+        <Text style={styles.subtitle}>
+          携帯電話番号を入力してください。{'\n'}
+          SMS認証コードを送信します。
         </Text>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>携帯電話番号</Text>
+          <TextInput
+            style={styles.input}
+            value={phoneNumber}
+            onChangeText={(text) => setPhoneNumber(formatPhoneInput(text))}
+            placeholder="090-1234-5678"
+            keyboardType="numeric"
+            maxLength={13}
+            autoFocus
+          />
+          <Text style={styles.inputHelper}>
+            日本の携帯電話番号を入力してください
+          </Text>
+        </View>
       </View>
 
-      <TouchableOpacity
-        style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={handleSendCode}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <ActivityIndicator color={colors.cream} />
-        ) : (
-          <Text style={styles.buttonText}>認証コードを送信</Text>
-        )}
-      </TouchableOpacity>
-
-      {/* 生体認証ボタン */}
-      {biometricAvailable && (
+      <View style={styles.buttonSection}>
         <TouchableOpacity
-          style={[styles.biometricButton, isLoading && styles.buttonDisabled]}
-          onPress={handleBiometricLogin}
+          style={[styles.button, isLoading && styles.buttonDisabled]}
+          onPress={handleSendCode}
           disabled={isLoading}
         >
-          <Ionicons name="finger-print" size={24} color={colors.orange} />
-          <Text style={styles.biometricText}>生体認証でログイン</Text>
+          {isLoading ? (
+            <ActivityIndicator color={colors.cream} />
+          ) : (
+            <Text style={styles.buttonText}>認証コードを送信</Text>
+          )}
         </TouchableOpacity>
-      )}
+
+        {/* 生体認証ボタン */}
+        {biometricAvailable && (
+          <TouchableOpacity
+            style={[styles.biometricButton, isLoading && styles.buttonDisabled]}
+            onPress={handleBiometricLogin}
+            disabled={isLoading}
+          >
+            <Ionicons name="finger-print" size={24} color={colors.orange} />
+            <Text style={styles.biometricText}>生体認証でログイン</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </ScrollView>
   );
 
@@ -278,51 +318,57 @@ export default function PhoneSignInScreen() {
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      automaticallyAdjustKeyboardInsets={true}
+      scrollEventThrottle={16}
     >
-      <View style={styles.iconContainer}>
-        <Ionicons name="chatbubble-ellipses" size={80} color={colors.orange} />
-      </View>
+      <View style={styles.topSection}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="chatbubble-ellipses" size={80} color={colors.orange} />
+        </View>
 
-      <Text style={styles.title}>認証コードを入力</Text>
-      <Text style={styles.subtitle}>
-        {phoneNumber}に送信された{'\n'}
-        6桁の認証コードを入力してください
-      </Text>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>認証コード</Text>
-        <TextInput
-          style={[styles.input, styles.codeInput]}
-          value={verificationCode}
-          onChangeText={setVerificationCode}
-          placeholder="123456"
-          keyboardType="numeric"
-          maxLength={6}
-          autoFocus
-        />
-      </View>
-
-      <TouchableOpacity
-        style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={handleVerifyCode}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <ActivityIndicator color={colors.cream} />
-        ) : (
-          <Text style={styles.buttonText}>認証する</Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.resendButton, countdown > 0 && styles.resendButtonDisabled]}
-        onPress={handleSendCode}
-        disabled={countdown > 0 || isLoading}
-      >
-        <Text style={[styles.resendText, countdown > 0 && styles.resendTextDisabled]}>
-          {countdown > 0 ? `再送信まで ${countdown}秒` : '認証コードを再送信'}
+        <Text style={styles.title}>認証コードを入力</Text>
+        <Text style={styles.subtitle}>
+          {phoneNumber}に送信された{'\n'}
+          6桁の認証コードを入力してください
         </Text>
-      </TouchableOpacity>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>認証コード</Text>
+          <TextInput
+            style={[styles.input, styles.codeInput]}
+            value={verificationCode}
+            onChangeText={setVerificationCode}
+            placeholder="123456"
+            keyboardType="numeric"
+            maxLength={6}
+            autoFocus
+          />
+        </View>
+      </View>
+
+      <View style={styles.buttonSection}>
+        <TouchableOpacity
+          style={[styles.button, isLoading && styles.buttonDisabled]}
+          onPress={handleVerifyCode}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color={colors.cream} />
+          ) : (
+            <Text style={styles.buttonText}>認証する</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.resendButton, countdown > 0 && styles.resendButtonDisabled]}
+          onPress={handleSendCode}
+          disabled={countdown > 0 || isLoading}
+        >
+          <Text style={[styles.resendText, countdown > 0 && styles.resendTextDisabled]}>
+            {countdown > 0 ? `再送信まで ${countdown}秒` : '認証コードを再送信'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 
@@ -330,32 +376,23 @@ export default function PhoneSignInScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" backgroundColor={colors.cream} />
       
+      {/* ヘッダー */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={colors.charcoal} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {step === 'phone' ? '電話番号入力' : '認証コード入力'}
+        </Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
       >
-        {/* ヘッダー */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.charcoal} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {step === 'phone' ? '電話番号入力' : '認証コード入力'}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
         {/* コンテンツ */}
         {step === 'phone' ? renderPhoneStep() : renderCodeStep()}
-
-        {/* フッター */}
-        <View style={styles.footer}>
-          <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
-            <Text style={styles.footerLink}>
-              メールアドレスでサインイン
-            </Text>
-          </TouchableOpacity>
-        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -393,14 +430,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+  },
+  topSection: {
+    flexShrink: 1,
+  },
+  buttonSection: {
+    paddingTop: 10,
+    paddingBottom: 10,
   },
   iconContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
   },
   title: {
     fontSize: 24,
@@ -414,10 +457,10 @@ const styles = StyleSheet.create({
     color: colors.darkGray,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 40,
+    marginBottom: 20,
   },
   inputContainer: {
-    marginBottom: 32,
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 16,
@@ -451,7 +494,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   buttonDisabled: {
     backgroundColor: colors.beige,
@@ -475,17 +518,6 @@ const styles = StyleSheet.create({
   },
   resendTextDisabled: {
     color: colors.darkGray,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 12,
-    alignItems: 'center',
-  },
-  footerLink: {
-    color: colors.orange,
-    fontSize: 16,
-    fontWeight: '500',
   },
   biometricButton: {
     flexDirection: 'row',

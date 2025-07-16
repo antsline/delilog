@@ -22,7 +22,8 @@ export default {
       buildNumber: "1",
       infoPlist: {
         NSMicrophoneUsageDescription: "音声入力機能で特記事項を入力するためにマイクを使用します。",
-        NSSpeechRecognitionUsageDescription: "音声入力機能で音声をテキストに変換するために使用します。"
+        NSSpeechRecognitionUsageDescription: "音声入力機能で音声をテキストに変換するために使用します。",
+        NSFaceIDUsageDescription: "このアプリはセキュアなログインのために Face ID を使用します。"
       }
     },
     android: {
@@ -50,7 +51,12 @@ export default {
           sounds: ["./assets/notification.wav"]
         }
       ],
-      "expo-local-authentication",
+      [
+        "expo-local-authentication",
+        {
+          faceIDPermission: "このアプリはセキュアなログインのために Face ID を使用します。"
+        }
+      ],
       "expo-secure-store"
     ],
     experiments: {

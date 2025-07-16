@@ -6,6 +6,8 @@ import { UserProfile } from '@/types/database';
 import { ErrorHandler } from '@/utils/errorHandler';
 import { AppError, ErrorCode } from '@/types/error';
 import { OPERATION_ERROR_MESSAGES } from '@/constants/errorMessages';
+import { biometricAuthService } from './biometricAuthService';
+import { authSessionService } from './authSessionService';
 
 export class AuthService {
   // Apple認証
@@ -176,10 +178,107 @@ export class AuthService {
       });
 
       if (error) throw error;
+      
+      // SMS認証成功時の記録
+      await authSessionService.recordSMSAuth();
+      
       return data;
     } catch (error) {
       console.error('SMS認証コード確認エラー:', error);
       throw error;
+    }
+  }
+
+  // 生体認証によるセッション延長
+  static async signInWithBiometric(): Promise<{ success: boolean; message: string; shouldPromptOtp?: boolean }> {
+    try {
+      // セッション情報をチェック
+      const sessionInfo = await authSessionService.getSessionInfo();
+      
+      if (!sessionInfo.biometricEnabled) {
+        return {
+          success: false,
+          message: '生体認証が有効化されていません。SMS認証を実行してください。',
+          shouldPromptOtp: true
+        };
+      }
+
+      // セッションの有効性をチェック
+      const isSessionValid = await authSessionService.isSessionValid();
+      if (!isSessionValid) {
+        return {
+          success: false,
+          message: 'セッションの有効期限が切れています。SMS認証を実行してください。',
+          shouldPromptOtp: true
+        };
+      }
+
+      // 生体認証を実行
+      const biometricResult = await biometricAuthService.authenticate(
+        'アプリにログインするために認証が必要です'
+      );
+
+      if (!biometricResult.success) {
+        return {
+          success: false,
+          message: biometricResult.message
+        };
+      }
+
+      // 保存されたSupabaseセッションを復元
+      const restoreResult = await authSessionService.restoreSupabaseSession();
+      if (!restoreResult.success) {
+        return {
+          success: false,
+          message: restoreResult.message,
+          shouldPromptOtp: true
+        };
+      }
+
+      return {
+        success: true,
+        message: '生体認証でログインしました'
+      };
+    } catch (error) {
+      console.error('生体認証ログインエラー:', error);
+      return {
+        success: false,
+        message: '生体認証でエラーが発生しました'
+      };
+    }
+  }
+
+  // 生体認証の利用可否チェック
+  static async canUseBiometric(): Promise<{ available: boolean; message: string }> {
+    try {
+      const sessionInfo = await authSessionService.getSessionInfo();
+      
+      if (!sessionInfo.biometricEnabled) {
+        return {
+          available: false,
+          message: '生体認証が有効化されていません'
+        };
+      }
+
+      const isSessionValid = await authSessionService.isSessionValid();
+      if (!isSessionValid) {
+        return {
+          available: false,
+          message: 'セッションの有効期限が切れています'
+        };
+      }
+
+      const biometricCheck = await biometricAuthService.isBiometricAvailable();
+      return {
+        available: biometricCheck.success,
+        message: biometricCheck.message
+      };
+    } catch (error) {
+      console.error('生体認証利用可否チェックエラー:', error);
+      return {
+        available: false,
+        message: '生体認証の確認でエラーが発生しました'
+      };
     }
   }
 
@@ -299,12 +398,63 @@ export class AuthService {
 
   // サインアウト
   static async signOut() {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (error) {
-      console.error('サインアウトエラー:', error);
-      throw error;
-    }
+    return new Promise<void>(async (resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        console.warn('サインアウトがタイムアウトしました');
+        resolve(); // エラーではなく正常終了として扱う
+      }, 5000); // 5秒でタイムアウト
+
+      try {
+        // 生体認証が有効かどうかをチェック
+        const sessionInfo = await authSessionService.getSessionInfo();
+        
+        console.log('*** ログアウト時セッション情報チェック:', {
+          biometricEnabled: sessionInfo.biometricEnabled,
+          hasSupabaseSession: !!sessionInfo.supabaseSession,
+          sessionExtendedUntil: sessionInfo.sessionExtendedUntil,
+          currentTime: Date.now()
+        });
+        
+        if (sessionInfo.biometricEnabled && sessionInfo.supabaseSession) {
+          console.log('*** 生体認証有効 - ローカルセッションのみクリア');
+          
+          // 生体認証が有効な場合は、手動でローカルセッション状態をクリア
+          // サーバー側のリフレッシュトークンは保持
+          try {
+            // より安全な方法でローカルセッションをクリア
+            const { error: clearError } = await supabase.auth.setSession({
+              access_token: null,
+              refresh_token: null
+            });
+            if (clearError) {
+              console.warn('ローカルセッションクリアエラー:', clearError);
+              // 代替方法を試行
+              await supabase.auth.signOut({ scope: 'local' });
+            }
+            console.log('*** ローカルセッションクリア完了');
+          } catch (clearError) {
+            console.warn('ローカルセッションクリアエラー:', clearError);
+            // それでも続行
+          }
+        } else {
+          console.log('*** 生体認証無効 - 完全ログアウト');
+          
+          // 生体認証が無効な場合は完全ログアウト
+          const { error } = await supabase.auth.signOut();
+          if (error) {
+            console.warn('完全ログアウトエラー:', error);
+            // エラーでも続行（UIのログアウト状態は保持）
+          }
+          console.log('*** 完全ログアウト完了');
+        }
+        
+        clearTimeout(timeoutId);
+        resolve();
+      } catch (error) {
+        console.error('サインアウトエラー:', error);
+        clearTimeout(timeoutId);
+        resolve(); // エラーでも正常終了として扱う（UIはログアウト状態になる）
+      }
+    });
   }
 }

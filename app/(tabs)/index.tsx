@@ -12,9 +12,10 @@ import {
   Animated
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
+import { spacing } from '@/constants/spacing';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
 import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
@@ -37,6 +38,17 @@ import { FeatureLimitBanner, PremiumFeatureBlock } from '@/components/subscripti
 function HomeScreen() {
   const { user, profile, loading: authLoading } = useAuth();
   const { todayStatus, loading: tenkoLoading, error, refreshData } = useTenko();
+  
+  // デバッグ用: todayStatusの内容をログ出力
+  React.useEffect(() => {
+    console.log('*** Index.tsx todayStatus:', {
+      beforeCompleted: todayStatus.beforeCompleted,
+      afterCompleted: todayStatus.afterCompleted,
+      canStartNewSession: todayStatus.canStartNewSession,
+      hasActiveSession: !!todayStatus.activeSession,
+      hasLatestCompleted: !!todayStatus.latestCompletedSession
+    });
+  }, [todayStatus]);
   const subscriptionStatus = useSubscriptionStatus();
   // パフォーマンス計測を一時的に無効化
   // const { checkMemoryUsage, recordScreenTransition } = usePerformanceMonitor();
@@ -87,13 +99,15 @@ function HomeScreen() {
   //   [checkMemoryUsage]
   // );
 
-  // 画面フォーカス時にデータを更新（一時的に無効化）
-  // useFocusEffect(
-  //   React.useCallback(() => {
-  //     optimizedRefreshData();
-  //     optimizedMemoryCheck();
-  //   }, [optimizedRefreshData, optimizedMemoryCheck])
-  // );
+  // 画面フォーカス時にデータを更新
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        console.log('*** ホーム画面フォーカス - データを更新');
+        refreshData();
+      }
+    }, [user?.id, refreshData])
+  );
   
   // 認証ローディング中は改善されたローディング表示
   if (authLoading && !user) {
@@ -196,127 +210,187 @@ function HomeScreen() {
           </View>
         )}
 
-        {/* 今日のステータス */}
-        <View style={styles.statusSection}>
-          <Text style={styles.sectionTitle}>今日の状況</Text>
-          
-          {loading ? (
-            <LoadingState
-              type="inline"
-              message="データを読み込み中..."
-              size="medium"
-              color={colors.orange}
-              animated={true}
-            />
-          ) : error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity onPress={refreshData} style={styles.retryButton}>
-                <Text style={styles.retryButtonText}>再試行</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.statusRow}>
-              <View style={styles.statusBox}>
-                <View style={styles.statusContent}>
-                  <Text style={styles.statusLabelInline}>業務前{'\n'}点呼</Text>
-                  <View style={[
-                    styles.statusTagInline, 
-                    todayStatus.beforeCompleted ? styles.statusCompleted : styles.statusPending
-                  ]}>
-                    <Text style={[
-                      styles.statusText,
-                      todayStatus.beforeCompleted && styles.statusCompletedText
-                    ]}>
-                      {todayStatus.beforeCompleted ? '完了' : '未実施'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              
-              <View style={styles.statusBox}>
-                <View style={styles.statusContent}>
-                  <Text style={styles.statusLabelInline}>業務後{'\n'}点呼</Text>
-                  <View style={[
-                    styles.statusTagInline, 
-                    todayStatus.afterCompleted ? styles.statusCompleted : styles.statusPending
-                  ]}>
-                    <Text style={[
-                      styles.statusText,
-                      todayStatus.afterCompleted && styles.statusCompletedText
-                    ]}>
-                      {todayStatus.afterCompleted ? '完了' : '未実施'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
 
         {/* 点呼ボタン */}
         <View style={styles.actionSection}>
-          <Text style={styles.sectionTitle}>点呼記録</Text>
-          
           <View style={styles.actionButtonRow}>
             <Animated.View style={[styles.actionButtonWrapper, { transform: [{ scale: beforeButtonScale }] }]}>
               <TouchableOpacity 
-                style={styles.actionButton}
+                style={[
+                  styles.actionButton,
+                  todayStatus.beforeCompleted && styles.actionButtonCompleted,
+                  todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonDisabled
+                ]}
                 onPress={() => {
+                  console.log('*** 業務前点呼ボタン押下時のstatus:', {
+                    beforeCompleted: todayStatus.beforeCompleted,
+                    afterCompleted: todayStatus.afterCompleted,
+                    canStartNewSession: todayStatus.canStartNewSession,
+                    hasActiveSession: !!todayStatus.activeSession,
+                    hasCompletedSession: !!todayStatus.latestCompletedSession
+                  });
+                  
+                  if (todayStatus.beforeCompleted && todayStatus.canStartNewSession) {
+                    Alert.alert(
+                      '新しい業務を開始してください',
+                      '下の「次の業務を開始」ボタンを押してから業務前点呼を行ってください。',
+                      [{ text: 'OK' }]
+                    );
+                    return;
+                  }
+                  
                   router.push('/tenko-before');
                 }}
-                onPressIn={beforePressIn}
-                onPressOut={beforePressOut}
+                onPressIn={!todayStatus.beforeCompleted ? beforePressIn : undefined}
+                onPressOut={!todayStatus.beforeCompleted ? beforePressOut : undefined}
                 hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 delayPressIn={0}
                 delayPressOut={0}
+                disabled={todayStatus.beforeCompleted && todayStatus.canStartNewSession}
                 {...createAccessibleProps(
                   AccessibilityLabels.BEFORE_TENKO_BUTTON,
-                  AccessibilityHints.TENKO_BUTTON,
+                  todayStatus.beforeCompleted ? '記録済みです' : AccessibilityHints.TENKO_BUTTON,
                   AccessibilityRoles.BUTTON
                 )}
               >
-                <View style={styles.actionButtonIcon}>
-                  <Feather name="truck" size={20} color={colors.charcoal} />
+                <View style={[
+                  styles.actionButtonIcon,
+                  todayStatus.beforeCompleted && styles.actionButtonIconCompleted,
+                  todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonIconDisabled
+                ]}>
+                  <Feather 
+                    name={todayStatus.beforeCompleted ? "check-circle" : "truck"} 
+                    size={20} 
+                    color={
+                      todayStatus.beforeCompleted 
+                        ? colors.orange 
+                        : colors.charcoal
+                    } 
+                  />
                 </View>
-                <Text style={styles.actionButtonTitle}>
+                <Text style={[
+                  styles.actionButtonTitle,
+                  todayStatus.beforeCompleted && styles.actionButtonTitleCompleted,
+                  todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonTitleDisabled
+                ]}>
                   業務前点呼
                 </Text>
-                <Text style={styles.actionButtonSubtitle}>
-                  運行開始前の確認
+                <Text style={[
+                  styles.actionButtonSubtitle,
+                  todayStatus.beforeCompleted && styles.actionButtonSubtitleCompleted,
+                  todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonSubtitleDisabled
+                ]}>
+                  {todayStatus.beforeCompleted && todayStatus.beforeRecord
+                    ? `${new Date(todayStatus.beforeRecord.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 記録済み`
+                    : '運行開始前の確認'
+                  }
                 </Text>
               </TouchableOpacity>
             </Animated.View>
 
             <Animated.View style={[styles.actionButtonWrapper, { transform: [{ scale: afterButtonScale }] }]}>
               <TouchableOpacity 
-                style={styles.actionButton}
+                style={[
+                  styles.actionButton,
+                  todayStatus.afterCompleted && styles.actionButtonCompleted,
+                  (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonDisabled
+                ]}
                 onPress={() => {
+                  console.log('*** 業務後点呼ボタン押下時のstatus:', {
+                    beforeCompleted: todayStatus.beforeCompleted,
+                    afterCompleted: todayStatus.afterCompleted,
+                    canStartNewSession: todayStatus.canStartNewSession
+                  });
+                  
+                  if (!todayStatus.beforeCompleted) {
+                    Alert.alert(
+                      '業務前点呼が必要です',
+                      '業務後点呼を行う前に、業務前点呼を完了してください。',
+                      [{ text: 'OK' }]
+                    );
+                    return;
+                  }
+                  if (todayStatus.afterCompleted && !todayStatus.canStartNewSession) {
+                    Alert.alert(
+                      '業務後点呼は完了済みです',
+                      '既に業務後点呼が完了しています。',
+                      [{ text: 'OK' }]
+                    );
+                    return;
+                  }
                   router.push('/tenko-after');
                 }}
-                onPressIn={afterPressIn}
-                onPressOut={afterPressOut}
+                onPressIn={todayStatus.beforeCompleted && (!todayStatus.afterCompleted || todayStatus.canStartNewSession) ? afterPressIn : undefined}
+                onPressOut={todayStatus.beforeCompleted && (!todayStatus.afterCompleted || todayStatus.canStartNewSession) ? afterPressOut : undefined}
                 hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 delayPressIn={0}
                 delayPressOut={0}
+                disabled={!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)}
                 {...createAccessibleProps(
                   AccessibilityLabels.AFTER_TENKO_BUTTON,
-                  AccessibilityHints.TENKO_BUTTON,
+                  !todayStatus.beforeCompleted ? '業務前点呼を先に完了してください' : todayStatus.afterCompleted ? '業務後点呼は完了済みです' : AccessibilityHints.TENKO_BUTTON,
                   AccessibilityRoles.BUTTON
                 )}
               >
-                <View style={styles.actionButtonIcon}>
-                  <Feather name="check-circle" size={20} color={colors.charcoal} />
+                <View style={[
+                  styles.actionButtonIcon,
+                  todayStatus.afterCompleted && styles.actionButtonIconCompleted,
+                  (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonIconDisabled
+                ]}>
+                  <Feather 
+                    name={todayStatus.afterCompleted ? "check-circle" : "clipboard"} 
+                    size={20} 
+                    color={
+                      todayStatus.afterCompleted 
+                        ? colors.orange 
+                        : !todayStatus.beforeCompleted
+                          ? colors.darkGray 
+                          : colors.charcoal
+                    } 
+                  />
                 </View>
-                <Text style={styles.actionButtonTitle}>
+                <Text style={[
+                  styles.actionButtonTitle,
+                  todayStatus.afterCompleted && styles.actionButtonTitleCompleted,
+                  (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonTitleDisabled
+                ]}>
                   業務後点呼
                 </Text>
-                <Text style={styles.actionButtonSubtitle}>
-                  運行終了後の確認
+                <Text style={[
+                  styles.actionButtonSubtitle,
+                  todayStatus.afterCompleted && styles.actionButtonSubtitleCompleted,
+                  (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonSubtitleDisabled
+                ]}>
+                  {todayStatus.afterCompleted && todayStatus.afterRecord
+                    ? `${new Date(todayStatus.afterRecord.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 記録済み`
+                    : !todayStatus.beforeCompleted
+                      ? '業務前点呼を先に実施'
+                      : '運行終了後の確認'
+                  }
                 </Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
+          
+          {/* 次の業務開始ボタン */}
+          {todayStatus.beforeCompleted && todayStatus.afterCompleted && todayStatus.canStartNewSession && (
+            <View style={styles.nextBusinessSection}>
+              <TouchableOpacity 
+                style={styles.nextBusinessButton}
+                onPress={() => {
+                  console.log('*** 次の業務開始ボタン押下');
+                  // 新しいセッションを開始可能にする処理
+                  router.push('/tenko-before');
+                }}
+                hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+              >
+                <View style={styles.nextBusinessButtonContent}>
+                  <Feather name="plus-circle" size={20} color={colors.charcoal} />
+                  <Text style={styles.nextBusinessButtonText}>次の業務を開始</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -354,7 +428,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: spacing.card,
     borderWidth: 1.5,
     borderColor: colors.beige,
     alignItems: 'center',
@@ -369,55 +443,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.charcoal,
     marginBottom: 16,
-  },
-  statusSection: {
-    marginBottom: 32,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statusBox: {
-    flex: 1,
-    backgroundColor: colors.cream,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: colors.beige,
-  },
-  statusContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statusLabelInline: {
-    fontSize: 14,
-    color: colors.charcoal,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'left',
-    lineHeight: 18,
-  },
-  statusTagInline: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  statusPending: {
-    backgroundColor: colors.beige,
-  },
-  statusCompleted: {
-    backgroundColor: colors.orange,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.charcoal,
-  },
-  statusCompletedText: {
-    color: colors.cream,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -454,11 +479,11 @@ const styles = StyleSheet.create({
     color: colors.cream,
   },
   actionSection: {
-    marginBottom: 32,
+    marginBottom: spacing.section,
   },
   actionButtonRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.card,
   },
   actionButtonWrapper: {
     flex: 1,
@@ -469,7 +494,7 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: colors.charcoal,
+    borderColor: colors.beige,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -497,8 +522,65 @@ const styles = StyleSheet.create({
     color: colors.darkGray,
     textAlign: 'center',
   },
+  actionButtonCompleted: {
+    backgroundColor: colors.orange + '10',
+    borderColor: colors.orange,
+  },
+  actionButtonIconCompleted: {
+    backgroundColor: colors.orange + '20',
+  },
+  actionButtonTitleCompleted: {
+    color: colors.orange,
+  },
+  actionButtonSubtitleCompleted: {
+    color: colors.orange,
+    fontWeight: '600',
+  },
+  nextBusinessSection: {
+    marginTop: spacing.card,
+    alignItems: 'stretch',
+  },
+  nextBusinessButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.beige,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  nextBusinessButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextBusinessButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.charcoal,
+    marginLeft: 8,
+  },
+  actionButtonDisabled: {
+    backgroundColor: colors.beige + '40',
+    borderColor: colors.darkGray,
+    opacity: 0.6,
+  },
+  actionButtonIconDisabled: {
+    backgroundColor: colors.darkGray + '20',
+  },
+  actionButtonTitleDisabled: {
+    color: colors.darkGray,
+  },
+  actionButtonSubtitleDisabled: {
+    color: colors.darkGray,
+    fontStyle: 'italic',
+  },
   syncIndicator: {
-    marginBottom: 24,
+    marginBottom: spacing.card,
   },
   trialBanner: {
     backgroundColor: colors.success + '20',
@@ -506,7 +588,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     padding: 12,
-    marginBottom: 16,
+    marginBottom: spacing.card,
     alignItems: 'center',
   },
   trialText: {

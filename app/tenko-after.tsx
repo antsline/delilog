@@ -23,12 +23,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTenko } from '@/hooks/useTenko';
 import { tenkoAfterSchema, type TenkoAfterFormData } from '@/types/tenkoValidation';
 import VoiceInputButton from '@/components/ui/VoiceInputButton';
+import HelpButton from '@/components/common/HelpButton';
 import { TenkoService } from '@/services/tenkoService';
 import { useOfflineStore, useNetworkStatus, useIsOffline } from '@/store/offlineStore';
 
 export default function TenkoAfterScreen() {
   const { user, profile } = useAuth();
-  const { vehicles, todayStatus } = useTenko();
+  const { vehicles, todayStatus, refreshData } = useTenko();
   const [submitting, setSubmitting] = React.useState(false);
   const [vehicleDropdownOpen, setVehicleDropdownOpen] = React.useState(false);
   
@@ -90,6 +91,12 @@ export default function TenkoAfterScreen() {
 
   // フォーム送信処理
   const onSubmit = async (data: TenkoAfterFormData) => {
+    console.log('*** tenko-after onSubmit START:', {
+      formData: data,
+      user: user?.id,
+      timestamp: new Date().toISOString()
+    });
+
     if (!user) {
       Alert.alert('エラー', 'ユーザー情報が見つかりません');
       return;
@@ -97,6 +104,8 @@ export default function TenkoAfterScreen() {
 
     try {
       setSubmitting(true);
+      
+      console.log('*** tenko-after: Before saving record');
       
       // データ保存処理
       const tenkoData = {
@@ -116,6 +125,12 @@ export default function TenkoAfterScreen() {
         is_offline_created: false, // サーバー保存の場合はfalse
       };
 
+      console.log('*** tenko-after: Record data prepared:', {
+        tenkoData,
+        isOffline,
+        timestamp: new Date().toISOString()
+      });
+
       // オフライン時はローカル保存、オンライン時はサーバー保存
       if (isOffline) {
         // オフライン時のローカル保存
@@ -130,6 +145,15 @@ export default function TenkoAfterScreen() {
         
         await offlineStore.saveLocalTenkoRecord(localRecord);
         
+        console.log('*** tenko-after: Offline record saved successfully:', {
+          localRecord,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Force refresh data to update session status
+        console.log('*** tenko-after: Refreshing data after offline save');
+        await refreshData();
+        
         Alert.alert(
           '記録完了（オフライン）',
           'オフライン記録として保存しました。\nネットワーク復旧時に自動同期されます。',
@@ -142,7 +166,17 @@ export default function TenkoAfterScreen() {
         );
       } else {
         // オンライン時のサーバー保存
-        await TenkoService.createTenkoRecord(tenkoData);
+        const savedRecord = await TenkoService.createTenkoRecord(tenkoData);
+        
+        console.log('*** tenko-after: Online record saved successfully:', {
+          savedRecord,
+          originalData: tenkoData,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Force refresh data to update session status immediately
+        console.log('*** tenko-after: Refreshing data after online save');
+        await refreshData();
         
         Alert.alert(
           '記録完了',
@@ -184,6 +218,15 @@ export default function TenkoAfterScreen() {
           };
           
           await offlineStore.saveLocalTenkoRecord(localRecord);
+          
+          console.log('*** tenko-after: Fallback offline record saved:', {
+            localRecord,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Force refresh data to update session status
+          console.log('*** tenko-after: Refreshing data after fallback save');
+          await refreshData();
           
           Alert.alert(
             '記録完了（オフライン）',
@@ -232,8 +275,19 @@ export default function TenkoAfterScreen() {
     minute: '2-digit'
   });
 
-  // 既に記録済みかチェック
-  if (todayStatus.afterCompleted) {
+  // 既に記録済みかチェック（より厳密な判定）
+  const isAfterCompleted = todayStatus.afterCompleted || 
+    (todayStatus.afterRecord && todayStatus.afterRecord.id);
+  
+  console.log('*** tenko-after: 完了状態チェック:', {
+    afterCompleted: todayStatus.afterCompleted,
+    hasAfterRecord: !!todayStatus.afterRecord,
+    afterRecordId: todayStatus.afterRecord?.id,
+    isAfterCompleted,
+    timestamp: new Date().toISOString()
+  });
+  
+  if (isAfterCompleted) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" backgroundColor={colors.cream} />
@@ -275,7 +329,27 @@ export default function TenkoAfterScreen() {
           >
             <Text style={styles.backIconText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>業務後点呼</Text>
+          <View style={styles.headerCenter}>
+            <Text style={styles.title}>業務後点呼</Text>
+          </View>
+          <HelpButton
+            type="specific"
+            helpContent={{
+              title: '業務後点呼の記録方法',
+              description: '業務終了後に実施する点呼記録の入力画面です。運行状況、健康状態、車両の状態などを記録します。',
+              steps: [
+                '運転者名と車両を選択',
+                '運行状況を「正常」「異常あり」から選択',
+                '健康状態を「良好」「不調」から選択',
+                'アルコール検知器の数値を入力',
+                '車両の異常の有無を確認',
+                '必要に応じて特記事項を入力',
+                '「業務後点呼を記録」ボタンで保存'
+              ]
+            }}
+            variant="icon"
+            size="medium"
+          />
         </View>
 
         {/* オフライン状態表示 */}
@@ -691,8 +765,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 20,
     paddingBottom: 24,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   backIcon: {
     padding: 8,

@@ -67,8 +67,8 @@ class BiometricAuthService {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: reason,
         cancelLabel: 'キャンセル',
-        fallbackLabel: 'パスコードを使用',
-        disableDeviceFallback: false, // パスコードでの認証も許可
+        fallbackLabel: '', // フォールバックを無効化
+        disableDeviceFallback: true, // パスコードでの認証を無効化（純粋な生体認証のみ）
       });
 
       if (result.success) {

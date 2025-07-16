@@ -3,6 +3,7 @@ import { View, SafeAreaView, ActivityIndicator, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/store/authStore';
 import { TenkoService } from '@/services/tenkoService';
+import HelpButton from '@/components/common/HelpButton';
 import RecordListView from '@/components/features/records/RecordListView';
 import { TenkoRecord, NoOperationDay } from '@/types/database';
 import { colors } from '@/constants/colors';

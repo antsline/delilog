@@ -27,7 +27,6 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>delilog</string>
           <string>jp.delilog.app</string>
         </array>
       </dict>
@@ -51,8 +50,12 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSFaceIDUsageDescription</key>
+    <string>このアプリはセキュアなログインのために Face ID を使用します。</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <string>音声入力機能で特記事項を入力するためにマイクを使用します。</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>音声入力機能で音声をテキストに変換するために使用します。</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
