@@ -35,6 +35,7 @@ import {
 } from '@/utils/accessibility';
 import { useAccessibilitySettings, useScreenReaderText } from '@/hooks/useAccessibilitySettings';
 import { createSafeTouchTarget, MIN_TOUCH_TARGET_SIZE } from '@/utils/touchTargetHelper';
+import { getTodayJapanDateString } from '@/utils/dateUtils';
 
 export default function TenkoBeforeScreen() {
   const { user, profile } = useAuth();
@@ -116,7 +117,7 @@ export default function TenkoBeforeScreen() {
       const tenkoData = {
         user_id: user.id,
         vehicle_id: data.vehicleId,
-        date: new Date().toISOString().split('T')[0], // YYYY-MM-DD形式
+        date: getTodayJapanDateString(), // 日本時間での今日の日付
         type: 'before' as const,
         check_method: data.checkMethod,
         executor: data.executor,

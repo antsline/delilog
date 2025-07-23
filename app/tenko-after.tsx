@@ -26,6 +26,7 @@ import VoiceInputButton from '@/components/ui/VoiceInputButton';
 import HelpButton from '@/components/common/HelpButton';
 import { TenkoService } from '@/services/tenkoService';
 import { useOfflineStore, useNetworkStatus, useIsOffline } from '@/store/offlineStore';
+import { getTodayJapanDateString } from '@/utils/dateUtils';
 
 export default function TenkoAfterScreen() {
   const { user, profile } = useAuth();
@@ -111,7 +112,7 @@ export default function TenkoAfterScreen() {
       const tenkoData = {
         user_id: user.id,
         vehicle_id: data.vehicleId,
-        date: new Date().toISOString().split('T')[0],
+        date: getTodayJapanDateString(), // 日本時間での今日の日付
         type: 'after' as const,
         check_method: data.checkMethod,
         executor: data.executor,
@@ -199,7 +200,7 @@ export default function TenkoAfterScreen() {
           const localRecord = {
             user_id: user.id,
             vehicle_id: data.vehicleId,
-            date: new Date().toISOString().split('T')[0],
+            date: getTodayJapanDateString(), // 日本時間での今日の日付
             type: 'after' as const,
             check_method: data.checkMethod,
             executor: data.executor,

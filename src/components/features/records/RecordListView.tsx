@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { TenkoRecord, NoOperationDay } from '@/types/database';
-import { generateDayList, formatDateDisplay } from '@/utils/dateUtils';
+import { generateDayList, formatDateDisplay, getJapanDate, parseJapanDateString } from '@/utils/dateUtils';
 import { NoOperationService } from '@/services/noOperationService';
 import HelpButton from '@/components/common/HelpButton';
 import { useAuthStore } from '@/store/authStore';
@@ -118,17 +118,17 @@ function RecordListView({
 
   // 各日の記録状態を計算
   const dayRecordsList: DayRecord[] = React.useMemo(() => {
-    const today = new Date();
+    const today = getJapanDate();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     
     return dayList.map(day => {
-      const dayRecords = recordsMap.get(day.dateStr) || [];
+      const dayRecords = recordsMap.get(day.date) || [];
       const hasAnyRecord = dayRecords.length > 0;
-      const isExplicitNoOperation = noOperationMap.has(day.dateStr);
+      const isExplicitNoOperation = noOperationMap.has(day.date);
       
-      // 日付を比較用に変換
-      const dayDate = new Date(day.dateStr);
+      // 日付を比較用に変換（日本時間ベース）
+      const dayDate = parseJapanDateString(day.date);
       const isPastDate = dayDate < yesterday;
       
       // 昨日以前で記録がない日は運行なしと判定
@@ -189,7 +189,7 @@ function RecordListView({
       const isComplete = sessionCount > 0 && completedSessions === sessionCount;
       
       return {
-        date: day.dateStr,
+        date: day.date,
         dayOfMonth: day.dayOfMonth,
         isToday: day.isToday,
         hasBeforeRecord,
@@ -199,7 +199,7 @@ function RecordListView({
         isSaturday: day.isSaturday,
         isSunday: day.isSunday,
         isWeekend: day.isWeekend,
-        isHoliday: day.isHoliday,
+        isHoliday: false, // generateDayListにisHolidayプロパティがないため一時的にfalse
         sessionCount,
         completedSessions,
         sessions,
@@ -337,80 +337,54 @@ function RecordListView({
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }}>
-      {/* ヘッダー部分 */}
+      {/* ヘッダー部分（タイトル + 年月ナビゲーション統合） */}
       <View style={{
         paddingHorizontal: 20,
-        paddingTop: 20,
+        paddingTop: 0,
         paddingBottom: 32,
         backgroundColor: colors.cream,
       }}>
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 8,
-        }}>
-          <Text style={{ 
-            fontSize: 28, 
-            fontWeight: 'bold', 
-            color: colors.charcoal,
-          }}>
-            記録一覧
-          </Text>
-          <HelpButton
-            type="specific"
-            helpContent={{
-              title: '記録一覧の見方',
-              description: '月別の点呼記録の状況を確認できます。各日付のカードをタップして詳細を確認したり、PDFを生成できます。',
-              steps: [
-                '左右の矢印で月を切り替え',
-                '各日付のカードで記録状況を確認',
-                '✓: 完了、△: 部分記録、○: 未記録、−: 運行なし',
-                'カードをタップして詳細確認',
-                'PDFボタンで週次レポート生成',
-                '長押しで運行なし切り替え（過去日のみ）'
-              ]
-            }}
-            variant="icon"
-            size="medium"
-          />
-        </View>
-      </View>
-
-      {/* 年月ナビゲーション */}
-      <View style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingBottom: 16,
-        backgroundColor: colors.cream,
-      }}>
-        <TouchableOpacity
-          onPress={onPrevMonth}
-          style={{
-            padding: 8,
-          }}
-        >
-          <Text style={{ fontSize: 20, color: colors.charcoal }}>←</Text>
-        </TouchableOpacity>
-        
         <Text style={{ 
-          fontSize: 18, 
+          fontSize: 28, 
           fontWeight: 'bold', 
-          color: colors.charcoal 
+          color: colors.charcoal,
+          marginBottom: 16,
         }}>
-          {formatDateDisplay(year, month)}
+          記録一覧
         </Text>
         
-        <TouchableOpacity
-          onPress={onNextMonth}
-          style={{
-            padding: 8,
-          }}
-        >
-          <Text style={{ fontSize: 20, color: colors.charcoal }}>→</Text>
-        </TouchableOpacity>
+        {/* 年月ナビゲーション */}
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <TouchableOpacity
+            onPress={onPrevMonth}
+            style={{
+              padding: 8,
+            }}
+          >
+            <Text style={{ fontSize: 20, color: colors.charcoal }}>←</Text>
+          </TouchableOpacity>
+          
+          <Text style={{ 
+            fontSize: 18, 
+            fontWeight: 'bold', 
+            color: colors.charcoal 
+          }}>
+            {year}年{month}月
+          </Text>
+          
+          <TouchableOpacity
+            onPress={onNextMonth}
+            style={{
+              padding: 8,
+            }}
+          >
+            <Text style={{ fontSize: 20, color: colors.charcoal }}>→</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
 

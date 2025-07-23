@@ -11,6 +11,7 @@ import {
   Alert,
   Animated
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -34,6 +35,8 @@ import {
 } from '@/utils/accessibility';
 import { useSubscriptionStatus } from '@/store/subscriptionStore';
 import { FeatureLimitBanner, PremiumFeatureBlock } from '@/components/subscription/FeatureLimitBanner';
+import DataViewLimitBanner from '@/components/subscription/DataViewLimitBanner';
+import { formatJapanDate } from '@/utils/dateUtils';
 
 function HomeScreen() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -126,29 +129,10 @@ function HomeScreen() {
   
   const loading = tenkoLoading;
 
-  // 今日の日付を取得
+  // 今日の日付を日本時間で取得
   const today = new Date();
-  const todayString = today.toLocaleDateString('ja-JP', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long'
-  });
+  const todayString = formatJapanDate(today);
 
-  // 時間帯に応じた挨拶を取得
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    
-    if (hour >= 5 && hour < 10) {
-      return 'おはようございます';
-    } else if (hour >= 10 && hour < 17) {
-      return 'おつかれさまです';
-    } else if (hour >= 17 && hour < 21) {
-      return 'おつかれさまです';
-    } else {
-      return 'おつかれさまです';
-    }
-  };
 
   return (
     <SafeAreaView 
@@ -167,13 +151,35 @@ function HomeScreen() {
         <View 
           style={styles.header}
           {...createAccessibleProps(
-            `${getGreeting()}、${profile?.driver_name || 'ドライバー'}さん`,
-            '今日の挨拶です',
+            `${profile?.driver_name || 'ドライバー'}さん`,
+            'ユーザー名を表示しています',
             AccessibilityRoles.HEADER
           )}
         >
-          <Text style={styles.greeting}>{getGreeting()}</Text>
           <Text style={styles.userName}>{profile?.driver_name || 'ドライバー'}さん</Text>
+        </View>
+
+        {/* ナビアドバイスカード */}
+        <View style={styles.navAdviceCardContainer}>
+          <LinearGradient
+            colors={[colors.orange, '#e85d39', '#e04d2a']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.navAdviceCard}
+          >
+            <Text style={styles.navAdviceText}>
+              {new Date().getHours() >= 5 && new Date().getHours() < 10 ? 'おはようございます' : 'おつかれさまです'}
+              {'\n'}
+              {!todayStatus.beforeCompleted 
+                ? '業務前点呼から始めましょう'
+                : !todayStatus.afterCompleted
+                  ? '業務後点呼をお忘れなく'
+                  : todayStatus.canStartNewSession
+                    ? '次の業務を開始できます'
+                    : '今日の業務お疲れさまでした'
+              }
+            </Text>
+          </LinearGradient>
         </View>
 
         {/* 日付カード */}
@@ -191,14 +197,9 @@ function HomeScreen() {
         {/* 同期状態表示 */}
         <SyncStatusIndicator showDetails={true} style={styles.syncIndicator} />
 
-        {/* ベーシックプラン状態表示 */}
+        {/* データ表示制限バナー */}
         {!subscriptionStatus.isBasic && (
-          <FeatureLimitBanner
-            feature="records"
-            currentUsage={0} // 実際は点呼記録数を取得
-            limit={50}
-            message="無料プランでは50件まで記録できます"
-          />
+          <DataViewLimitBanner />
         )}
 
         {/* トライアル表示 */}
@@ -253,38 +254,37 @@ function HomeScreen() {
                   AccessibilityRoles.BUTTON
                 )}
               >
-                <View style={[
-                  styles.actionButtonIcon,
-                  todayStatus.beforeCompleted && styles.actionButtonIconCompleted,
-                  todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonIconDisabled
-                ]}>
+                <View style={styles.actionButtonContent}>
                   <Feather 
                     name={todayStatus.beforeCompleted ? "check-circle" : "truck"} 
-                    size={20} 
+                    size={24} 
                     color={
                       todayStatus.beforeCompleted 
                         ? colors.orange 
                         : colors.charcoal
                     } 
+                    style={styles.actionButtonIconTopLeft}
                   />
+                  <View style={styles.actionButtonTextContainer}>
+                    <Text style={[
+                      styles.actionButtonTitleLarge,
+                      todayStatus.beforeCompleted && styles.actionButtonTitleCompleted,
+                      todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonTitleDisabled
+                    ]}>
+                      業務前点呼
+                    </Text>
+                    <Text style={[
+                      styles.actionButtonSubtitle,
+                      todayStatus.beforeCompleted && styles.actionButtonSubtitleCompleted,
+                      todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonSubtitleDisabled
+                    ]}>
+                      {todayStatus.beforeCompleted && todayStatus.beforeRecord
+                        ? `${new Date(todayStatus.beforeRecord.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 記録済み`
+                        : '運行開始前の確認'
+                      }
+                    </Text>
+                  </View>
                 </View>
-                <Text style={[
-                  styles.actionButtonTitle,
-                  todayStatus.beforeCompleted && styles.actionButtonTitleCompleted,
-                  todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonTitleDisabled
-                ]}>
-                  業務前点呼
-                </Text>
-                <Text style={[
-                  styles.actionButtonSubtitle,
-                  todayStatus.beforeCompleted && styles.actionButtonSubtitleCompleted,
-                  todayStatus.beforeCompleted && todayStatus.canStartNewSession && styles.actionButtonSubtitleDisabled
-                ]}>
-                  {todayStatus.beforeCompleted && todayStatus.beforeRecord
-                    ? `${new Date(todayStatus.beforeRecord.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 記録済み`
-                    : '運行開始前の確認'
-                  }
-                </Text>
               </TouchableOpacity>
             </Animated.View>
 
@@ -332,14 +332,10 @@ function HomeScreen() {
                   AccessibilityRoles.BUTTON
                 )}
               >
-                <View style={[
-                  styles.actionButtonIcon,
-                  todayStatus.afterCompleted && styles.actionButtonIconCompleted,
-                  (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonIconDisabled
-                ]}>
+                <View style={styles.actionButtonContent}>
                   <Feather 
                     name={todayStatus.afterCompleted ? "check-circle" : "clipboard"} 
-                    size={20} 
+                    size={24} 
                     color={
                       todayStatus.afterCompleted 
                         ? colors.orange 
@@ -347,27 +343,30 @@ function HomeScreen() {
                           ? colors.darkGray 
                           : colors.charcoal
                     } 
+                    style={styles.actionButtonIconTopLeft}
                   />
+                  <View style={styles.actionButtonTextContainer}>
+                    <Text style={[
+                      styles.actionButtonTitleLarge,
+                      todayStatus.afterCompleted && styles.actionButtonTitleCompleted,
+                      (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonTitleDisabled
+                    ]}>
+                      業務後点呼
+                    </Text>
+                    <Text style={[
+                      styles.actionButtonSubtitle,
+                      todayStatus.afterCompleted && styles.actionButtonSubtitleCompleted,
+                      (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonSubtitleDisabled
+                    ]}>
+                      {todayStatus.afterCompleted && todayStatus.afterRecord
+                        ? `${new Date(todayStatus.afterRecord.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 記録済み`
+                        : !todayStatus.beforeCompleted
+                          ? '業務前点呼が必要'
+                          : '運行終了後の確認'
+                      }
+                    </Text>
+                  </View>
                 </View>
-                <Text style={[
-                  styles.actionButtonTitle,
-                  todayStatus.afterCompleted && styles.actionButtonTitleCompleted,
-                  (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonTitleDisabled
-                ]}>
-                  業務後点呼
-                </Text>
-                <Text style={[
-                  styles.actionButtonSubtitle,
-                  todayStatus.afterCompleted && styles.actionButtonSubtitleCompleted,
-                  (!todayStatus.beforeCompleted || (todayStatus.afterCompleted && !todayStatus.canStartNewSession)) && styles.actionButtonSubtitleDisabled
-                ]}>
-                  {todayStatus.afterCompleted && todayStatus.afterRecord
-                    ? `${new Date(todayStatus.afterRecord.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} 記録済み`
-                    : !todayStatus.beforeCompleted
-                      ? '業務前点呼が必要'
-                      : '運行終了後の確認'
-                  }
-                </Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -392,6 +391,71 @@ function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* 日常点検・運行記録ボタン */}
+        <View style={styles.actionSection}>
+          <View style={styles.actionButtonRow}>
+            {/* 日常点検ボタン */}
+            <View style={styles.actionButtonWrapper}>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.actionButtonDisabled]}
+                disabled={true}
+                {...createAccessibleProps(
+                  '日常点検記録',
+                  '今後実装予定の機能です',
+                  AccessibilityRoles.BUTTON
+                )}
+              >
+                <View style={styles.actionButtonContent}>
+                  <Feather 
+                    name="tool"
+                    size={24} 
+                    color={colors.darkGray}
+                    style={styles.actionButtonIconTopLeft}
+                  />
+                  <View style={styles.actionButtonTextContainer}>
+                    <Text style={[styles.actionButtonTitleLarge, styles.actionButtonTitleDisabled]}>
+                      日常点検
+                    </Text>
+                    <Text style={[styles.actionButtonSubtitle, styles.actionButtonSubtitleDisabled]}>
+                      今後実装予定
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* 運行記録ボタン */}
+            <View style={styles.actionButtonWrapper}>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.actionButtonDisabled]}
+                disabled={true}
+                {...createAccessibleProps(
+                  '運行記録',
+                  '今後実装予定の機能です',
+                  AccessibilityRoles.BUTTON
+                )}
+              >
+                <View style={styles.actionButtonContent}>
+                  <Feather 
+                    name="map"
+                    size={24} 
+                    color={colors.darkGray}
+                    style={styles.actionButtonIconTopLeft}
+                  />
+                  <View style={styles.actionButtonTextContainer}>
+                    <Text style={[styles.actionButtonTitleLarge, styles.actionButtonTitleDisabled]}>
+                      運行記録
+                    </Text>
+                    <Text style={[styles.actionButtonSubtitle, styles.actionButtonSubtitleDisabled]}>
+                      今後実装予定
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -413,16 +477,32 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 32,
   },
-  greeting: {
-    fontSize: 16,
-    color: colors.darkGray,
-    marginBottom: 4,
-  },
   userName: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.charcoal,
-    marginBottom: 8,
+  },
+  navAdviceCardContainer: {
+    marginBottom: spacing.card,
+    marginHorizontal: -20,
+  },
+  navAdviceCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 20,
+    borderWidth: 1.5,
+    borderColor: colors.orange,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  navAdviceText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'left',
   },
   dateCard: {
     backgroundColor: colors.cream,
@@ -500,7 +580,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
-    minHeight: 120,
+    height: 160,
+    width: '100%',
     justifyContent: 'center',
   },
   actionButtonIcon: {
@@ -580,6 +661,30 @@ const styles = StyleSheet.create({
   actionButtonSubtitleDisabled: {
     color: colors.darkGray,
     fontStyle: 'italic',
+  },
+  actionButtonContent: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    justifyContent: 'flex-end',
+    paddingBottom: 6,
+  },
+  actionButtonIconTopLeft: {
+    position: 'absolute',
+    top: 0,
+    left: -4,
+  },
+  actionButtonTextContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonTitleLarge: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.charcoal,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   syncIndicator: {
     marginBottom: spacing.card,

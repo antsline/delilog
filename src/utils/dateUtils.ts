@@ -1,292 +1,228 @@
 /**
- * 日付関連のユーティリティ関数
+ * 日本時間専用の日付処理ユーティリティ
+ * このアプリは日本のみで利用されるため、すべて日本時間（JST, UTC+9）で統一
  */
 
 /**
- * 指定した月の日付配列を生成する
- * @param year 年
- * @param month 月 (0-11)
- * @returns 日付配列（前月末・当月・次月初を含む6週分）
+ * 現在の日本時間を取得
  */
-export function generateCalendarDates(year: number, month: number) {
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const firstDayOfWeek = firstDay.getDay(); // 0: 日曜日
-  const daysInMonth = lastDay.getDate();
-  
-  const dates: Date[] = [];
-  
-  // 前月の末尾日付を追加（週の始まりを日曜日に合わせる）
-  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-    const prevDate = new Date(year, month, -i);
-    dates.push(prevDate);
-  }
-  
-  // 当月の日付を追加
-  for (let day = 1; day <= daysInMonth; day++) {
-    dates.push(new Date(year, month, day));
-  }
-  
-  // 次月の初期日付を追加（6週分になるまで）
-  const remainingDays = 42 - dates.length; // 6週 × 7日
-  for (let day = 1; day <= remainingDays; day++) {
-    dates.push(new Date(year, month + 1, day));
-  }
-  
-  return dates;
-}
+export const getJapanDate = (): Date => {
+  const now = new Date();
+  // 日本時間に変換（UTC+9）
+  const japanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  return japanTime;
+};
 
 /**
- * 日付が同じ月かどうかを判定
+ * 今日の日付を日本時間でYYYY-MM-DD形式で取得
  */
-export function isSameMonth(date: Date, year: number, month: number): boolean {
-  return date.getFullYear() === year && date.getMonth() === month;
-}
+export const getTodayJapanDateString = (): string => {
+  const japanDate = getJapanDate();
+  return formatDateToYYYYMMDD(japanDate);
+};
 
 /**
- * 日付が今日かどうかを判定
+ * 日付をYYYY-MM-DD形式の文字列に変換（日本時間基準）
  */
-export function isToday(date: Date): boolean {
-  const today = new Date();
-  return (
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate()
-  );
-}
-
-/**
- * 日付が土曜日かどうかを判定
- */
-export function isSaturday(date: Date): boolean {
-  return date.getDay() === 6;
-}
-
-/**
- * 日付が日曜日かどうかを判定
- */
-export function isSunday(date: Date): boolean {
-  return date.getDay() === 0;
-}
-
-/**
- * 日付を YYYY-MM-DD 形式の文字列に変換
- */
-export function formatDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+export const formatDateToYYYYMMDD = (date: Date): string => {
+  const japanTime = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+  const year = japanTime.getUTCFullYear();
+  const month = String(japanTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(japanTime.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
+};
 
 /**
- * 月名を日本語で取得
+ * 日本時間での現在時刻をISO文字列で取得
  */
-export function getMonthName(month: number): string {
-  const monthNames = [
-    '1月', '2月', '3月', '4月', '5月', '6月',
-    '7月', '8月', '9月', '10月', '11月', '12月'
-  ];
-  return monthNames[month];
-}
+export const getJapanISOString = (): string => {
+  const japanDate = getJapanDate();
+  return japanDate.toISOString();
+};
 
 /**
- * 曜日名を日本語で取得
+ * 指定した日付の日本時間での開始時刻を取得（00:00:00）
  */
-export function getDayName(dayOfWeek: number): string {
-  const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-  return dayNames[dayOfWeek];
-}
+export const getJapanDayStart = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  // 日本時間での日付開始時刻を作成
+  const japanDate = new Date();
+  japanDate.setUTCFullYear(year, month - 1, day);
+  japanDate.setUTCHours(0, 0, 0, 0);
+  // UTC-9時間を引いて日本時間の00:00を表現
+  return new Date(japanDate.getTime() - (9 * 60 * 60 * 1000));
+};
 
 /**
- * 指定した月の日付リストを生成（縦スクロール用）
+ * 指定した日付の日本時間での終了時刻を取得（23:59:59.999）
  */
-export function generateDayList(year: number, month: number) {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date();
+export const getJapanDayEnd = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  // 日本時間での日付終了時刻を作成
+  const japanDate = new Date();
+  japanDate.setUTCFullYear(year, month - 1, day);
+  japanDate.setUTCHours(23, 59, 59, 999);
+  // UTC-9時間を引いて日本時間の23:59を表現
+  return new Date(japanDate.getTime() - (9 * 60 * 60 * 1000));
+};
+
+/**
+ * 日付文字列（YYYY-MM-DD）を日本時間のDateオブジェクトに変換
+ */
+export const parseJapanDateString = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  // 日本時間として解釈
+  const japanDate = new Date();
+  japanDate.setUTCFullYear(year, month - 1, day);
+  japanDate.setUTCHours(12, 0, 0, 0); // 日本時間の正午として設定
+  return new Date(japanDate.getTime() - (9 * 60 * 60 * 1000));
+};
+
+/**
+ * 2つの日付の差を日数で取得（日本時間基準）
+ */
+export const getDaysDifference = (date1: Date, date2: Date): number => {
+  const date1Japan = formatDateToYYYYMMDD(date1);
+  const date2Japan = formatDateToYYYYMMDD(date2);
   
+  const time1 = parseJapanDateString(date1Japan).getTime();
+  const time2 = parseJapanDateString(date2Japan).getTime();
+  
+  const diffTime = Math.abs(time1 - time2);
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+};
+
+/**
+ * 指定した日数前の日付を日本時間で取得
+ */
+export const getDaysAgo = (days: number): string => {
+  const today = getJapanDate();
+  const pastDate = new Date(today.getTime() - (days * 24 * 60 * 60 * 1000));
+  return formatDateToYYYYMMDD(pastDate);
+};
+
+/**
+ * 指定した月数前の日付を日本時間で取得
+ */
+export const getMonthsAgo = (months: number): string => {
+  const today = getJapanDate();
+  const pastDate = new Date(today.getTime());
+  pastDate.setUTCMonth(pastDate.getUTCMonth() - months);
+  return formatDateToYYYYMMDD(pastDate);
+};
+
+/**
+ * 日付が今日（日本時間）かどうかをチェック
+ */
+export const isToday = (date: Date | string): boolean => {
+  const todayString = getTodayJapanDateString();
+  const dateString = typeof date === 'string' ? date : formatDateToYYYYMMDD(date);
+  return todayString === dateString;
+};
+
+/**
+ * 日付が指定した日数以内（日本時間）かどうかをチェック
+ */
+export const isWithinDays = (date: Date | string, days: number): boolean => {
+  const dateString = typeof date === 'string' ? date : formatDateToYYYYMMDD(date);
+  const targetDate = parseJapanDateString(dateString);
+  const today = getJapanDate();
+  const diffDays = getDaysDifference(today, targetDate);
+  return diffDays <= days;
+};
+
+/**
+ * 月の最初の日を取得（YYYY-MM-DD形式）
+ */
+export const getMonthStart = (year: number, month: number): string => {
+  return `${year}-${String(month).padStart(2, '0')}-01`;
+};
+
+/**
+ * 月の最後の日を取得（YYYY-MM-DD形式）
+ */
+export const getMonthEnd = (year: number, month: number): string => {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+};
+
+/**
+ * 日本時間での時刻表示用フォーマット
+ */
+export const formatJapanDateTime = (date: Date): string => {
+  const japanTime = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+  return japanTime.toLocaleString('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+};
+
+/**
+ * 日本時間での日付表示用フォーマット
+ */
+export const formatJapanDate = (date: Date): string => {
+  const japanTime = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+  return japanTime.toLocaleDateString('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  });
+};
+
+/**
+ * 指定年月の日付リストを生成（日本時間ベース）
+ */
+export const generateDayList = (year: number, month: number): Array<{
+  date: string;
+  dayOfMonth: number;
+  isToday: boolean;
+  isSaturday: boolean;
+  isSunday: boolean;
+  isWeekend: boolean;
+}> => {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const today = getTodayJapanDateString();
   const dayList = [];
+
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month, day);
-    const dateStr = formatDateKey(date);
-    const isToday = 
-      date.getFullYear() === today.getFullYear() &&
-      date.getMonth() === today.getMonth() &&
-      date.getDate() === today.getDate();
+    const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dateObj = parseJapanDateString(dateString);
+    const dayOfWeek = dateObj.getDay();
     
-    const dayOfWeek = date.getDay();
-    const isSat = dayOfWeek === 6;
-    const isSun = dayOfWeek === 0;
-    const isHoliday = isJapaneseHoliday(date);
-    
+    const isSaturday = dayOfWeek === 6;
+    const isSunday = dayOfWeek === 0;
+    const isWeekend = isSaturday || isSunday;
+    const isToday = dateString === today;
+
     dayList.push({
+      date: dateString,
       dayOfMonth: day,
-      dateStr,
       isToday,
-      date,
-      isSaturday: isSat,
-      isSunday: isSun,
-      isWeekend: isSat || isSun,
-      isHoliday
+      isSaturday,
+      isSunday,
+      isWeekend,
     });
   }
-  
+
   return dayList;
-}
+};
 
 /**
- * 年月を表示用にフォーマット
+ * 日付表示用フォーマット（RecordListView用）
  */
-export function formatDateDisplay(year: number, month: number): string {
-  return `${year}年${month + 1}月`;
-}
-
-/**
- * 今日が週末かどうかを判定
- */
-export function isWeekend(date: Date = new Date()): boolean {
-  const dayOfWeek = date.getDay(); // 0: Sunday, 6: Saturday
-  return dayOfWeek === 0 || dayOfWeek === 6;
-}
-
-/**
- * 今日が平日かどうかを判定
- */
-export function isWeekday(date: Date = new Date()): boolean {
-  return !isWeekend(date);
-}
-
-/**
- * 時刻文字列（HH:MM）を今日の Date オブジェクトに変換
- */
-export function timeStringToDate(timeString: string, date: Date = new Date()): Date {
-  const [hours, minutes] = timeString.split(':').map(Number);
-  const result = new Date(date);
-  result.setHours(hours, minutes, 0, 0);
-  return result;
-}
-
-/**
- * 日本の祝日判定（包括版）
- */
-export function isJapaneseHoliday(date: Date): boolean {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  
-  // 固定祝日
-  const fixedHolidays = [
-    '1-1',   // 元日
-    '2-11',  // 建国記念の日
-    '4-29',  // 昭和の日
-    '5-3',   // 憲法記念日
-    '5-4',   // みどりの日
-    '5-5',   // こどもの日
-    '8-11',  // 山の日
-    '11-3',  // 文化の日
-    '11-23', // 勤労感謝の日
-    '12-23', // 天皇誕生日（2019年以降）
-  ];
-  
-  const dateString = `${month}-${day}`;
-  if (fixedHolidays.includes(dateString)) {
-    return true;
-  }
-  
-  // 移動祝日
-  // 成人の日（1月第2月曜日）
-  if (month === 1) {
-    const secondMonday = getMonthWeekday(year, 1, 1, 2); // 第2月曜日
-    if (day === secondMonday) return true;
-  }
-  
-  // 海の日（7月第3月曜日）
-  if (month === 7) {
-    const thirdMonday = getMonthWeekday(year, 7, 1, 3); // 第3月曜日
-    if (day === thirdMonday) return true;
-  }
-  
-  // 敬老の日（9月第3月曜日）
-  if (month === 9) {
-    const thirdMonday = getMonthWeekday(year, 9, 1, 3); // 第3月曜日
-    if (day === thirdMonday) return true;
-  }
-  
-  // スポーツの日（10月第2月曜日）
-  if (month === 10) {
-    const secondMonday = getMonthWeekday(year, 10, 1, 2); // 第2月曜日
-    if (day === secondMonday) return true;
-  }
-  
-  // 春分の日・秋分の日（近似値）
-  if (month === 3) {
-    const shunbun = Math.floor(20.8431 + 0.242194 * (year - 1851) - Math.floor((year - 1851) / 4));
-    if (day === shunbun) return true;
-  }
-  
-  if (month === 9) {
-    const shubun = Math.floor(23.2488 + 0.242194 * (year - 1851) - Math.floor((year - 1851) / 4));
-    if (day === shubun) return true;
-  }
-  
-  return false;
-}
-
-/**
- * 指定月の第n週の指定曜日を取得
- * @param year 年
- * @param month 月 (1-12)
- * @param weekday 曜日 (0:日曜日, 1:月曜日, ...)
- * @param week 第n週 (1-5)
- * @returns 日付
- */
-function getMonthWeekday(year: number, month: number, weekday: number, week: number): number {
-  const firstDay = new Date(year, month - 1, 1);
-  const firstWeekday = firstDay.getDay();
-  
-  // 第1週の指定曜日を計算
-  let targetDate = 1 + (weekday - firstWeekday + 7) % 7;
-  
-  // 第n週の指定曜日を計算
-  targetDate += (week - 1) * 7;
-  
-  // 月の範囲内チェック
-  const lastDay = new Date(year, month, 0).getDate();
-  if (targetDate > lastDay) {
-    return -1; // 存在しない日付
-  }
-  
-  return targetDate;
-}
-
-/**
- * 営業日かどうかを判定（平日かつ非祝日）
- */
-export function isBusinessDay(date: Date = new Date()): boolean {
-  return isWeekday(date) && !isJapaneseHoliday(date);
-}
-
-/**
- * 時刻の形式化
- */
-export function formatTime(date: Date): string {
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  return `${hours}:${minutes}`;
-}
-
-/**
- * 通知スケジュールが有効かチェック
- */
-export function shouldScheduleNotification(
-  weekendEnabled: boolean,
-  date: Date = new Date()
-): boolean {
-  // 平日は常に有効
-  if (isWeekday(date)) {
-    return true;
-  }
-  
-  // 週末は設定に依存
-  return weekendEnabled;
-}
+export const formatDateDisplay = (dateString: string): string => {
+  const date = parseJapanDateString(dateString);
+  return date.toLocaleDateString('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    month: 'short',
+    day: 'numeric',
+    weekday: 'short',
+  });
+};

@@ -21,6 +21,7 @@ import { VehicleService } from '@/services/vehicleService';
 import { TenkoService } from '@/services/tenkoService';
 import { NoOperationService } from '@/services/noOperationService';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { formatDateToYYYYMMDD, parseJapanDateString } from '@/utils/dateUtils';
 
 export default function PDFExportScreen() {
   const { user, profile } = useAuthStore();
@@ -89,13 +90,16 @@ export default function PDFExportScreen() {
     };
   }, [pdfState.isSharing]);
 
-  // 選択された日が含まれる週の範囲を取得
+  // 選択された日が含まれる週の範囲を取得（日本時間ベース）
   const getWeekRange = (date: Date) => {
-    const dayOfWeek = date.getDay(); // 0: 日曜日, 6: 土曜日
+    // 日本時間での日付文字列を取得
+    const dateString = formatDateToYYYYMMDD(date);
+    const japanDate = parseJapanDateString(dateString);
+    const dayOfWeek = japanDate.getDay(); // 0: 日曜日, 6: 土曜日
     
     // 週の開始日（日曜日）を計算
-    const startDate = new Date(date);
-    startDate.setDate(date.getDate() - dayOfWeek);
+    const startDate = new Date(japanDate);
+    startDate.setDate(japanDate.getDate() - dayOfWeek);
     
     // 週の終了日（土曜日）を計算
     const endDate = new Date(startDate);

@@ -1,11 +1,12 @@
 import { supabase } from './supabase';
 import { TenkoRecord, TenkoRecordInsert, Vehicle, NoOperationDay, WorkSession, WorkSessionDetail } from '@/types/database';
 import { randomUUID } from 'expo-crypto';
+import { getTodayJapanDateString } from '@/utils/dateUtils';
 
 export class TenkoService {
   // 今日の点呼記録を取得（業務セッション対応版）
   static async getTodayRecords(userId: string): Promise<TenkoRecord[]> {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD形式
+    const today = getTodayJapanDateString(); // 日本時間での今日の日付
     
     // 今日の業務に関連する記録を取得
     // 1. 今日作成された記録 (date = today)
@@ -239,6 +240,21 @@ export class TenkoService {
     const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
     
     return this.getRecordsByDateRange(userId, startDate, endDate);
+  }
+
+  // ユーザーの全ての点呼記録を取得（データエクスポート用）
+  static async getAllUserRecords(userId: string): Promise<TenkoRecord[]> {
+    const { data, error } = await supabase
+      .from('tenko_records')
+      .select(`
+        *,
+        vehicle:vehicles(*)
+      `)
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   }
 
   // 業務セッション関連メソッド

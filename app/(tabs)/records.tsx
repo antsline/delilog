@@ -8,6 +8,7 @@ import RecordListView from '@/components/features/records/RecordListView';
 import { TenkoRecord, NoOperationDay } from '@/types/database';
 import { colors } from '@/constants/colors';
 import { useOfflineStore, useLocalTenkoRecords, useDataStats, useIsOffline } from '@/store/offlineStore';
+import { getJapanDate } from '@/utils/dateUtils';
 import { Feather } from '@expo/vector-icons';
 import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
 
@@ -16,7 +17,7 @@ export default function RecordsScreen() {
   const [records, setRecords] = React.useState<TenkoRecord[]>([]);
   const [noOperationDays, setNoOperationDays] = React.useState<NoOperationDay[]>([]);
   const [currentDate, setCurrentDate] = React.useState(() => {
-    const now = new Date();
+    const now = getJapanDate();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
   const [loading, setLoading] = React.useState(false);
@@ -163,7 +164,7 @@ export default function RecordsScreen() {
       
       <RecordListView
         year={currentDate.year}
-        month={currentDate.month}
+        month={currentDate.month + 1}
         records={records}
         noOperationDays={noOperationDays}
         onPrevMonth={handlePrevMonth}

@@ -1,5 +1,18 @@
 # delilog 開発ログ
 
+この開発ログは以下のファイルに分割されました：
+
+- **Week 1-5**: [DEVELOPMENT_LOG_WEEK_1-5.md](./DEVELOPMENT_LOG_WEEK_1-5.md)
+  - 開発環境構築、データベース設計、基本機能実装、UI/UX統一
+
+- **Week 6-10**: [DEVELOPMENT_LOG_WEEK_6-10.md](./DEVELOPMENT_LOG_WEEK_6-10.md)
+  - エラーハンドリング、UI/UX最終調整、オフライン対応、パフォーマンス最適化
+
+- **Week 11-14**: [DEVELOPMENT_LOG_WEEK_11-14.md](./DEVELOPMENT_LOG_WEEK_11-14.md)
+  - プッシュ通知、セキュリティ強化、決済機能、複数運行対応
+
+## 最新の開発内容（Week 10以降）
+
 ## Week 10: パフォーマンス最適化とUXブラッシュアップ（2025年7月11日）
 
 ### 無限ループ問題の修正（2025年7月11日）
